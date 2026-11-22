@@ -235,7 +235,10 @@ tr.cut td{border-bottom:2px dashed var(--line)}
   .livebox{font-size:1.5rem}
   .g{cursor:pointer}
   .gs{overflow:visible;gap:.7rem}
-  .gsTop{grid-template-columns:1fr 1fr;grid-template-areas:"mid mid" "a h";padding:.8rem;gap:.6rem}
+  .gsTop{grid-template-columns:1fr 1fr;grid-template-areas:"mid mid" "a h";padding:.8rem;gap:.6rem 1.4rem;position:relative}
+  .gsTop::after{content:"–";position:absolute;left:50%;bottom:1.1rem;transform:translateX(-50%);color:var(--dim);font-size:1.6rem;font-weight:800}
+  .wli .wk{width:5.6rem;flex:none}
+  .gsTop.pre::after{content:none}
   .gsMid{grid-area:mid;min-width:0}
   .gsSide{grid-area:a;gap:.6rem;padding-left:.5rem;border-left-width:.3rem}
   .gsSide.home{grid-area:h;padding-right:.5rem;border-right-width:.3rem}
@@ -868,7 +871,7 @@ function panelGame(g){
   const isMN = CFG.mnTeams.some(t => e.teams.some(x => x.id === t.id && t.path === g.path));
   const title = (e.state === 'pre' ? (ymd(new Date(e.date)) === ymd(new Date()) ? 'Game Day · ' : 'Preview · ') : live ? 'Live · ' : 'Recap · ') + `${a.abbr} @ ${h.abbr}`;
   return { title, html: `<div class="gs ${isMN ? 'gsMN' : ''}">
-    <div class="gsTop">${side(a,false)}<div class="gsMid">${mid}</div>${side(h,true)}</div>${story}
+    <div class="gsTop ${e.state === 'pre' ? 'pre' : ''}">${side(a,false)}<div class="gsMid">${mid}</div>${side(h,true)}</div>${story}
     <div class="gsCols" style="grid-template-columns:1.2fr 1fr 1.2fr">${cols}</div></div>` };
 }
 
@@ -1006,12 +1009,13 @@ function kindLabel(g){
   return '<span class="chip">RECAP</span>';
 }
 function watchList(){
-  const games = spotlightGames();
+  const mnIds = CFG.mnTeams.map(t => t.id);
+  const games = spotlightGames().filter(g => g.kind !== 'live' || g.e.teams.some(x => mnIds.includes(x.id)));
   if (!games.length) return '';
   return `<div class="sub">Tap a game for details</div><div class="wl">${games.map(g => {
     const e = findEvent(g.e.id) || g.e; const [a,h] = e.teams;
     const right = e.state === 'pre' ? whenText(e.date) : `${esc(a.abbr)} ${esc(a.score)} – ${esc(h.score)} ${esc(h.abbr)} · ${esc(e.detail)}`;
-    return `<div class="wli" data-gid="${e.id}" data-path="${g.path}">${kindLabel(g)}<b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b><span>${right}</span><i>›</i></div>`;
+    return `<div class="wli" data-gid="${e.id}" data-path="${g.path}"><span class="wk">${kindLabel(g)}</span><b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b><span>${right}</span><i>›</i></div>`;
   }).join('')}</div>`;
 }
 function mobileContent(){
