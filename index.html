@@ -42,7 +42,23 @@ img{display:block}
 .empty{color:var(--dim);font-size:1.4rem;padding:3rem;text-align:center}
 
 /* MN cards */
+.mnwrap{display:flex;flex-direction:column;gap:1rem;flex:1;min-height:0}
 .mngrid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:1rem;flex:1}
+.offrow{display:flex;gap:1rem}
+.offc{flex:1;display:flex;align-items:center;gap:.7rem;background:var(--panel);border-radius:.6rem;padding:.55rem 1rem;border-left:.4rem solid;font-size:1.05rem}
+.offc img{width:1.7rem;height:1.7rem;object-fit:contain}
+.offc span{margin-left:auto;color:var(--dim);font-size:.9rem}
+.bxgrid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;flex:1;min-height:0}
+.bxwrap{overflow-x:auto}
+.bx{width:100%;border-collapse:collapse}
+.bx th{font-size:.78rem;padding:.25rem .3rem;text-align:right}
+.bx td{font-size:1rem;padding:.24rem .3rem;text-align:right;border-bottom:1px solid var(--line)}
+.bx td.bn{text-align:left;font-weight:700;white-space:nowrap}
+.bx td.pts{color:var(--gold);font-weight:800}
+.bx tr.sep td{border-bottom:2px solid var(--dim)}
+.bx tr.tot td{font-weight:800;border-top:2px solid var(--dim);border-bottom:0}
+.dnp{color:var(--dim);font-size:.85rem;margin-top:.5rem}
+.dnp span{font-size:.8rem}
 .card{background:var(--panel);border-radius:.8rem;display:flex;overflow:hidden;border:2px solid transparent;position:relative}
 .card.live{border-color:var(--live);box-shadow:0 0 1.4rem rgba(255,59,59,.35)}
 .card .stripe{width:.55rem;flex:none}
@@ -230,6 +246,14 @@ tr.cut td{border-bottom:2px dashed var(--line)}
   .games{grid-template-columns:1fr 1fr!important;gap:.6rem}
   .rk2{grid-template-columns:1fr}
   .card{min-height:0}
+  html,body{overflow-x:hidden}
+  .box,.gsCols>*,.panel.mp,.gs{min-width:0;max-width:100%}
+  .bxwrap{max-width:100%;-webkit-overflow-scrolling:touch}
+  .offrow{flex-wrap:wrap;gap:.5rem}
+  .offc{flex:1 1 40%;font-size:.9rem;padding:.45rem .7rem}
+  .bxgrid{grid-template-columns:1fr}
+  .bx td.bn{position:sticky;left:0;background:var(--panel);z-index:1}
+  .bx td,.bx th{font-size:.85rem}
   .card .body{padding:.7rem .8rem}
   .line,.line .v{white-space:normal}
   .livebox{font-size:1.5rem}
@@ -481,7 +505,9 @@ async function fetchSummary(e, path){
         players: (s.boxscore?.players || []).map(t => {
           const g = t.statistics?.[0]; if (!g) return null;
           const lab = g.labels || [], ix = k => lab.indexOf(k);
-          return { abbr: t.team?.abbreviation, labels: lab, rows: (g.athletes || []).filter(a => a.stats?.length).map(a => ({ who: a.athlete?.shortName || '', st: a.stats })) };
+          return { abbr: t.team?.abbreviation, labels: lab, totals: g.totals || [],
+            rows: (g.athletes || []).filter(a => a.stats?.length).map(a => ({ who: a.athlete?.shortName || '', st: a.stats, starter: !!a.starter })),
+            dnp: (g.athletes || []).filter(a => !a.stats?.length).map(a => ({ who: a.athlete?.shortName || '', why: a.reason || 'DNP' })) };
         }).filter(Boolean),
         wp: (s.winprobability || []).map(x => x.homeWinPercentage).filter(x => x != null),
         predictor: s.predictor ? { home: parseFloat(s.predictor.homeTeam?.gameProjection), away: parseFloat(s.predictor.awayTeam?.gameProjection) } : null,
@@ -605,7 +631,9 @@ function sitText(e){
 function logoImg(src, cls=''){ return src ? `<img class="${cls}" src="${esc(src)}" alt="" onerror="this.style.visibility='hidden'">` : ''; }
 
 function panelMN(){
+  const offTeams = [];
   const cards = CFG.mnTeams.map((t,i) => {
+    if (t.events && teamState(t,i).off){ offTeams.push(t); return null; }
     if (t.err && !t.events) return `<div class="card"><div class="stripe" style="background:${t.color}"></div><div class="body"><div class="hdr"><div class="nm">${esc(t.label)}</div></div><div class="off">Data unavailable</div></div></div>`;
     const s = teamState(t,i);
     let inner = '';
@@ -630,7 +658,9 @@ function panelMN(){
     ${w.last ? `<div class="line"><span class="k">Last</span><span class="v">${esc(w.last.result || 'Result pending')} · ${esc(w.last.opp)}</span></div>` : ''}
     ${w.next ? `<div class="line"><span class="k">Next</span><span class="v">${esc(w.next.opp)} · ${wrestWhen(w.next)}${w.next.tv ? ' · '+esc(w.next.tv) : ''}</span></div>` : ''}
   </div></div>`);
-  return { title: 'Minnesota', html: `<div class="mngrid">${cards.join('')}</div>` };
+  const live = cards.filter(Boolean), rows = Math.ceil(live.length / 3);
+  const strip = offTeams.length ? `<div class="offrow">${offTeams.map(t => `<div class="offc" style="border-color:${t.color}">${logoImg(t.logo)}<b>${esc(t.label)}</b><span>Offseason</span></div>`).join('')}</div>` : '';
+  return { title: 'Minnesota', html: `<div class="mnwrap"><div class="mngrid" style="grid-template-rows:repeat(${rows},1fr)">${live.join('')}</div>${strip}</div>` };
 }
 
 function gameTile(e, mnIds, path){
@@ -794,6 +824,24 @@ function performersBox(sum, e){
       ${rows.map(r => `<div class="pf tnum"><span class="lw">${esc(r.who)}</span>${cols.map(([,i]) => `<span>${esc(r.st[i])}</span>`).join('')}</div>`).join('')}</div>`;
   }).join('');
 }
+function boxScoreBox(sum, t){
+  const T = (sum?.players || []).find(x => x.abbr === t.abbr);
+  if (!T || !T.rows.length) return '<div class="dim">Box score not available</div>';
+  const cols = T.labels.map((l,i) => [l,i]).filter(([l]) => l !== 'DREB');
+  const starters = T.rows.filter(r => r.starter), bench = T.rows.filter(r => !r.starter);
+  const row = (r, cls) => `<tr class="${cls || ''}"><td class="bn">${esc(r.who)}</td>${cols.map(([l,i]) => `<td class="${l === 'PTS' ? 'pts' : ''}">${esc(r.st[i] ?? '')}</td>`).join('')}</tr>`;
+  return `<div class="ldHdr" style="border-color:${t.color}">${logoImg(t.logo)}${esc(t.abbr)}</div>
+    <div class="bxwrap"><table class="bx tnum"><tr><th></th>${cols.map(([l]) => `<th>${esc(l)}</th>`).join('')}</tr>
+    ${starters.map((r,i) => row(r, i === starters.length - 1 && bench.length ? 'sep' : '')).join('')}${bench.map(r => row(r)).join('')}
+    ${T.totals.length ? `<tr class="tot"><td class="bn">Team</td>${cols.map(([l,i]) => `<td>${esc(T.totals[i] ?? '')}</td>`).join('')}</tr>` : ''}</table></div>
+    ${T.dnp.length ? `<div class="dnp">Did not play: ${T.dnp.map(d => `${esc(d.who)} <span>(${esc(d.why.replace(/^DNP-?\s*/i,'').toLowerCase() || 'dnp')})</span>`).join(', ')}</div>` : ''}`;
+}
+function panelBox(g){
+  const e = findEvent(g.e.id) || g.e, sum = D.sum[e.id];
+  const [a, h] = e.teams;
+  return { title: `Box Score · ${a.abbr} ${a.score} @ ${h.abbr} ${h.score}`,
+    html: `<div class="bxgrid"><div class="box">${boxScoreBox(sum, a)}</div><div class="box">${boxScoreBox(sum, h)}</div></div>` };
+}
 function wpChart(sum, e){
   const w = sum?.wp || [];
   if (w.length < 3) return '';
@@ -867,7 +915,9 @@ function panelGame(g){
     const c1 = `<div class="box"><h3>SCORE BY ${fb ? 'QUARTER' : 'PERIOD'}</h3>${lineScore(e, sum)}${fb && sum?.wp?.length > 2 ? `<h3 style="margin-top:1rem">HOW IT SWUNG</h3>${wpChart(sum, e)}` : ''}<h3 style="margin-top:1rem">TEAM STATS</h3>${statsBox(sum, e, g.path)}</div>`;
     cols = fb
       ? `${c1}<div class="box"><h3>GAME LEADERS</h3>${leadersBox(sum, e, 'Leaders not available')}</div><div class="box"><h3>SCORING</h3>${scoringBox(sum)}</div>`
-      : `${c1}<div class="box"><h3>GAME LEADERS</h3>${leadersBox(sum, e, 'Leaders not available')}</div><div class="box"><h3>TOP PERFORMERS</h3>${performersBox(sum, e)}</div>`;
+      : (PHONE && g.path.includes('basketball')
+        ? `${c1}<div class="box"><h3>GAME LEADERS</h3>${leadersBox(sum, e, 'Leaders not available')}</div><div class="box"><h3>BOX SCORE</h3>${boxScoreBox(sum, e.teams[0])}<div style="height:1rem"></div>${boxScoreBox(sum, e.teams[1])}</div>`
+        : `${c1}<div class="box"><h3>GAME LEADERS</h3>${leadersBox(sum, e, 'Leaders not available')}</div><div class="box"><h3>TOP PERFORMERS</h3>${performersBox(sum, e)}</div>`);
   }
   const isMN = CFG.mnTeams.some(t => e.teams.some(x => x.id === t.id && t.path === g.path));
   const title = (e.state === 'pre' ? (ymd(new Date(e.date)) === ymd(new Date()) ? 'Game Day · ' : 'Preview · ') : live ? 'Live · ' : 'Recap · ') + `${a.abbr} @ ${h.abbr}`;
@@ -896,7 +946,7 @@ function buildRotation(){
   const nflLive = (D.nfl || []).some(e => e.state === 'in');
   P('mn', panelMN, mnLive.length ? CFG.panelSeconds * 1.5 : CFG.panelSeconds);
   previews.forEach(g => P('pv:'+g.e.id, () => panelGame(g), CFG.gameSeconds));
-  games.filter(g => g.kind === 'recap').forEach(g => P('rc:'+g.e.id, () => panelGame(g), CFG.gameSeconds));
+  games.filter(g => g.kind === 'recap').forEach(g => { P('rc:'+g.e.id, () => panelGame(g), CFG.gameSeconds); if (g.path.includes('basketball')) P('bx:'+g.e.id, () => panelBox(g), CFG.gameSeconds * 1.5); });
   if (nflLive){
     // NFL window: scoreboard, then a screen per live game, back to the scoreboard every 3 games
     P('nfl', panelNFL, CFG.liveBoardSeconds);
