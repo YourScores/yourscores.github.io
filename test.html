@@ -290,7 +290,11 @@ tr.cut td{border-bottom:2px dashed var(--line)}
   .ev .d{width:5.4rem}
   .wl{display:flex;flex-direction:column;gap:.45rem;margin-bottom:1rem}
   .wli{display:flex;align-items:center;gap:.6rem;background:var(--panel);border-radius:.55rem;padding:.65rem .8rem;font-size:.95rem;cursor:pointer}
-  .wli span{color:var(--dim);margin-left:auto;text-align:right;font-size:.85rem}
+  .wli .wr{color:var(--dim);margin-left:auto;text-align:right;font-size:.78rem;line-height:1.25}
+  .wli b{white-space:nowrap}
+  .wli{gap:.5rem;padding:.6rem .65rem}
+  .wli .wk{width:5.3rem!important}
+  .wli .wk .chip{margin-right:0}
   .wli i{color:var(--gold);font-style:normal;font-size:1.3rem;font-weight:800}
   .mback{display:flex;align-items:center;gap:.8rem;margin-bottom:.7rem}
   .mback button{background:var(--panel);color:var(--gold);border:0;border-radius:.45rem;padding:.5rem .8rem;font:inherit;font-weight:800}
@@ -1103,12 +1107,12 @@ function watchList(){
     const mt = CFG.mnTeams.find(t => t.path === g.path && e.teams.some(x => x.id === t.id));
     const right = e.state === 'pre' ? whenText(e.date) : `${esc(a.abbr)} ${esc(a.score)} – ${esc(h.score)} ${esc(h.abbr)} · ${esc(e.detail)}`;
     const neon = mt ? neonFor(g.path) : '';
-    return `<div class="wli ${neon}" data-gid="${e.id}" data-path="${g.path}"><span class="wk">${kindLabel(g)}</span><span class="wt">${logoImg(mt?.logo || '')}<small>${LEAGUE[g.path] || ''}</small></span><b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b><span>${right}</span><i>›</i></div>`;
+    return `<div class="wli ${neon}" data-gid="${e.id}" data-path="${g.path}"><span class="wk">${kindLabel(g)}</span><span class="wt">${logoImg(mt?.logo || '')}<small>${LEAGUE[g.path] || ''}</small></span><b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b><span class="wr">${right}</span><i>›</i></div>`;
   });
   // Gophers wrestling: game day (from 5 PM the night before), and the result through the next day
   const w = wrestNext(), today = ymd(new Date()), yest = ymd(new Date(Date.now() - 864e5));
   const wLogo = CFG.mnTeams.find(t => t.path === 'football/college-football')?.logo || '';
-  const wLine = (label, opp, right) => `<div class="wli" data-tab="wr"><span class="wk">${label}</span><span class="wt">${logoImg(wLogo)}<small>WRES</small></span><b>${esc(opp)}</b><span>${right}</span><i>›</i></div>`;
+  const wLine = (label, opp, right) => `<div class="wli" data-tab="wr"><span class="wk">${label}</span><span class="wt">${logoImg(wLogo)}<small>WRES</small></span><b>${esc(opp)}</b><span class="wr">${right}</span><i>›</i></div>`;
   if (w.last && w.last.result && [today, yest].includes(ymd(wrestDate(w.last))))
     lines.push(wLine('<span class="chip">RESULT</span>', w.last.opp, esc(w.last.result)));
   if (w.next && (ymd(wrestDate(w.next)) === today || previewTime(wrestDate(w.next))))
