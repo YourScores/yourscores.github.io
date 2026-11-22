@@ -84,6 +84,16 @@ img{display:block}
 .g{background:var(--panel);border-radius:.6rem;padding:.6rem .9rem;display:flex;flex-direction:column;gap:.25rem;border:2px solid transparent}
 .g.live{border-color:var(--live)}
 .g.mn{background:linear-gradient(90deg,rgba(79,38,131,.45),var(--panel) 60%)}
+:root{--neonP:#b56cff;--neonG:#8dff3a}
+.g.mnv,.card.mnv,.wli.mnv{border:2px solid var(--neonP);box-shadow:0 0 .9rem rgba(181,108,255,.75),inset 0 0 .5rem rgba(181,108,255,.25)}
+.g.mnw,.card.mnw,.wli.mnw{border:2px solid var(--neonG);box-shadow:0 0 .9rem rgba(141,255,58,.6),inset 0 0 .5rem rgba(141,255,58,.2)}
+.g.mnw{background:linear-gradient(90deg,rgba(141,255,58,.16),var(--panel) 65%)}
+.card.live{border-color:var(--live)}
+tr.mnv td{background:rgba(181,108,255,.28)}
+tr.mnv td:first-child{box-shadow:inset .3rem 0 0 var(--neonP)}
+tr.mnw td{background:rgba(141,255,58,.16)}
+tr.mnw td:first-child{box-shadow:inset .3rem 0 0 var(--neonG)}
+.wolvesSub{color:var(--neonG)!important;text-shadow:0 0 .5rem rgba(141,255,58,.6)}
 .g .row{display:flex;align-items:center;gap:.6rem;font-size:1.15rem}
 .g .row img{width:1.7rem;height:1.7rem;object-fit:contain}
 .g .row .ab{font-weight:700;width:3.4rem}
@@ -648,7 +658,7 @@ function panelMN(){
       inner = `${s.last ? `<div class="line"><span class="k">Last</span><span class="v">${resultText(s.last,t.id)}</span></div>` : ''}
         ${s.next ? `<div class="line"><span class="k">Next</span><span class="v">${nextText(s.next,t.id)}</span></div>` : ''}`;
     }
-    return `<div class="card ${s.live ? 'live' : ''}" data-mn="${i}"><div class="stripe" style="background:${t.color}"></div><div class="body">
+    return `<div class="card ${neonFor(t.path)} ${s.live ? 'live' : ''}" data-mn="${i}"><div class="stripe" style="background:${t.color}"></div><div class="body">
       <div class="hdr">${logoImg(t.logo)}<div class="nm">${esc(t.label)}</div><div class="rec">${esc(t.rec)}</div></div>${inner}</div></div>`;
   });
   // wrestling card
@@ -663,6 +673,7 @@ function panelMN(){
   return { title: 'Minnesota', html: `<div class="mnwrap"><div class="mngrid" style="grid-template-rows:repeat(${rows},1fr)">${live.join('')}</div>${strip}</div>` };
 }
 
+function neonFor(path){ return path === 'football/nfl' ? 'mnv' : path === 'basketball/nba' ? 'mnw' : ''; }
 function gameTile(e, mnIds, path){
   const live = e.state === 'in';
   const isMN = e.teams.some(x => mnIds.includes(x.id));
@@ -673,7 +684,7 @@ function gameTile(e, mnIds, path){
   }).join('');
   const left = e.state === 'pre' ? whenText(e.date) : esc(e.detail);
   const extra = e.state === 'pre' ? [e.odds?.line, e.odds?.ou ? 'O/U ' + e.odds.ou : '', wxShort(e)].filter(Boolean).join(' · ') : '';
-  return `<div class="g ${live ? 'live' : ''} ${isMN ? 'mn' : ''}" data-gid="${e.id}" data-path="${path || ''}">${rows}<div class="st ${live ? 'lv' : ''}"><span>${left}</span><span>${live ? sitText(e) || esc(e.tv) : esc(e.tv)}</span></div>${extra ? `<div class="st od"><span>${esc(extra)}</span></div>` : ''}</div>`;
+  return `<div class="g ${live ? 'live' : ''} ${isMN ? 'mn ' + neonFor(path) : ''}" data-gid="${e.id}" data-path="${path || ''}">${rows}<div class="st ${live ? 'lv' : ''}"><span>${left}</span><span>${live ? sitText(e) || esc(e.tv) : esc(e.tv)}</span></div>${extra ? `<div class="st od"><span>${esc(extra)}</span></div>` : ''}</div>`;
 }
 function sortGames(list){
   const o = { in:0, pre:1, post:2 };
@@ -691,17 +702,34 @@ function panelNBA(){
   const today = D.nba || [], y = (D.nbaY || []).filter(e => e.state === 'post');
   if (!D.nba && !D.nbaY) return { title:'NBA', html:'<div class="empty">NBA scores unavailable</div>' };
   const ids = mnIdsFor('basketball/nba');
-  const maxY = Math.max(0, 16 - today.length);
+  // Timberwolves first: the live game, or the last result, plus the next game
+  const wi = CFG.mnTeams.findIndex(t => t.path === 'basketball/nba');
+  const wt = CFG.mnTeams[wi];
+  const ws = wt?.events ? teamState(wt, wi) : null;
+  const wolves = [];
+  if (ws){
+    const cur = ws.live || ws.last;
+    if (cur) wolves.push(findEvent(cur.id) || cur);
+    if (ws.next && (!cur || ws.next.id !== cur.id)) wolves.push(findEvent(ws.next.id) || ws.next);
+  }
+  const wolvesIds = new Set(wolves.map(e => e.id));
+  const notWolves = e => !wolvesIds.has(e.id) && !e.teams.some(x => ids.includes(x.id));
+  const todayL = sortGames(today.filter(notWolves)), yL = y.filter(notWolves);
+  // on the TV keep it to 4 rows of tiles
+  const rowsLeft = 4 - (wolves.length ? 1 : 0) - Math.max(1, Math.ceil(todayL.length / 4));
+  const maxY = PHONE ? 8 : Math.max(0, rowsLeft * 4);
+  const tiles = list => list.map(e => gameTile(e, ids, 'basketball/nba')).join('');
   return { title: 'NBA', html: `
-    <div class="sub">Today</div>
-    <div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${today.length ? sortGames(today).map(e => gameTile(e, ids, 'basketball/nba')).join('') : '<div class="empty" style="grid-column:1/-1;padding:1rem">No games today</div>'}</div>
-    ${y.length && maxY ? `<div class="sub" style="margin-top:.9rem">Last night</div><div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${y.slice(0,Math.min(maxY,8)).map(e => gameTile(e, ids, 'basketball/nba')).join('')}</div>` : ''}` };
+    ${wolves.length ? `<div class="sub wolvesSub">Timberwolves</div><div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${tiles(wolves)}</div>` : ''}
+    <div class="sub" style="margin-top:.9rem">Today</div>
+    <div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${todayL.length ? tiles(todayL) : '<div class="empty" style="grid-column:1/-1;padding:1rem">No other games today</div>'}</div>
+    ${yL.length && maxY ? `<div class="sub" style="margin-top:.9rem">Last night</div><div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${tiles(yL.slice(0, maxY))}</div>` : ''}` };
 }
 function panelNFLStand(){
   if (!D.nflStand) return { title:'NFL Standings', html:'<div class="empty">Standings unavailable</div>' };
   const box = dv => `<div class="div"><h3>${esc(dv.name.toUpperCase())}</h3><table class="tnum">
     <tr><th>Team</th><th>W-L${dv.rows.some(r=>r.t)?'-T':''}</th><th>Diff</th><th>Strk</th></tr>
-    ${dv.rows.map(r => `<tr class="${r.abbr==='MIN'?'mn':''}"><td>${logoImg(r.logo)}${esc(r.abbr)}</td><td>${r.w}-${r.l}${r.t?'-'+r.t:''}</td><td>${esc(r.diff)}</td><td>${esc(r.strk)}</td></tr>`).join('')}
+    ${dv.rows.map(r => `<tr class="${r.abbr==='MIN'?'mn mnv':''}"><td>${logoImg(r.logo)}${esc(r.abbr)}</td><td>${r.w}-${r.l}${r.t?'-'+r.t:''}</td><td>${esc(r.diff)}</td><td>${esc(r.strk)}</td></tr>`).join('')}
   </table></div>`;
   return { title:'NFL Standings', html:`<div class="divs">${D.nflStand.map(box).join('')}</div>` };
 }
@@ -709,7 +737,7 @@ function panelNBAStand(){
   if (!D.nbaStand) return { title:'NBA Standings', html:'<div class="empty">Standings unavailable</div>' };
   const box = c => `<div class="conf"><h3>${esc(c.name.toUpperCase())}</h3><table class="tnum">
     <tr><th>#</th><th style="text-align:left">Team</th><th>W</th><th>L</th><th>GB</th><th>L10</th><th>Strk</th></tr>
-    ${c.rows.map((r,i) => `<tr class="${r.abbr==='MIN'?'mn':''} ${i===5||i===9?'cut':''}"><td>${r.seed||i+1}</td><td style="text-align:left">${logoImg(r.logo)}${esc(r.abbr)}</td><td>${r.w}</td><td>${r.l}</td><td>${esc(r.gb)}</td><td>${esc(r.l10)}</td><td>${esc(r.strk)}</td></tr>`).join('')}
+    ${c.rows.map((r,i) => `<tr class="${r.abbr==='MIN'?'mn mnw':''} ${i===5||i===9?'cut':''}"><td>${r.seed||i+1}</td><td style="text-align:left">${logoImg(r.logo)}${esc(r.abbr)}</td><td>${r.w}</td><td>${r.l}</td><td>${esc(r.gb)}</td><td>${esc(r.l10)}</td><td>${esc(r.strk)}</td></tr>`).join('')}
   </table></div>`;
   return { title:'NBA Standings', html:`<div class="confs">${D.nbaStand.map(box).join('')}</div>` };
 }
@@ -1066,7 +1094,8 @@ function watchList(){
   return `<div class="sub">Tap a game for details</div><div class="wl">${games.map(g => {
     const e = findEvent(g.e.id) || g.e; const [a,h] = e.teams;
     const right = e.state === 'pre' ? whenText(e.date) : `${esc(a.abbr)} ${esc(a.score)} – ${esc(h.score)} ${esc(h.abbr)} · ${esc(e.detail)}`;
-    return `<div class="wli" data-gid="${e.id}" data-path="${g.path}"><span class="wk">${kindLabel(g)}</span><b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b><span>${right}</span><i>›</i></div>`;
+    const neon = CFG.mnTeams.some(t => t.path === g.path && e.teams.some(x => x.id === t.id)) ? neonFor(g.path) : '';
+    return `<div class="wli ${neon}" data-gid="${e.id}" data-path="${g.path}"><span class="wk">${kindLabel(g)}</span><b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b><span>${right}</span><i>›</i></div>`;
   }).join('')}</div>`;
 }
 function mobileContent(){
