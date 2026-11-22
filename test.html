@@ -237,7 +237,8 @@ tr.cut td{border-bottom:2px dashed var(--line)}
   .gs{overflow:visible;gap:.7rem}
   .gsTop{grid-template-columns:1fr 1fr;grid-template-areas:"mid mid" "a h";padding:.8rem;gap:.6rem 1.4rem;position:relative}
   .gsTop::after{content:"–";position:absolute;left:50%;bottom:1.1rem;transform:translateX(-50%);color:var(--dim);font-size:1.6rem;font-weight:800}
-  .wli .wk{width:5.6rem;flex:none}
+  .wli .wk{width:5.9rem;flex:none;white-space:nowrap}
+  .wli .chip{font-size:.68rem}
   .gsTop.pre::after{content:none}
   .gsMid{grid-area:mid;min-width:0}
   .gsSide{grid-area:a;gap:.6rem;padding-left:.5rem;border-left-width:.3rem}
@@ -1009,8 +1010,8 @@ function kindLabel(g){
   return '<span class="chip">RECAP</span>';
 }
 function watchList(){
-  const mnIds = CFG.mnTeams.map(t => t.id);
-  const games = spotlightGames().filter(g => g.kind !== 'live' || g.e.teams.some(x => mnIds.includes(x.id)));
+  const isMNgame = g => CFG.mnTeams.some(t => t.path === g.path && g.e.teams.some(x => x.id === t.id));
+  const games = spotlightGames().filter(g => g.kind !== 'live' || isMNgame(g));
   if (!games.length) return '';
   return `<div class="sub">Tap a game for details</div><div class="wl">${games.map(g => {
     const e = findEvent(g.e.id) || g.e; const [a,h] = e.teams;

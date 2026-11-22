@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Garage Scoreboard</title>
+<meta name="theme-color" content="#07090d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{
   --bg:#07090d; --panel:#10141b; --panel2:#161b24; --line:#232a36;
@@ -201,6 +207,63 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .form b{width:3.4rem}
 .fc{font-style:normal;font-weight:800;font-size:.85rem;width:1.5rem;height:1.5rem;display:inline-flex;align-items:center;justify-content:center;border-radius:.25rem}
 .fc.W{background:rgba(61,220,132,.25);color:var(--win)}.fc.L{background:rgba(255,107,107,.22);color:var(--loss)}.fc.T,.fc.D{background:rgba(255,198,47,.2);color:var(--gold)}
+
+/* ---------------- phone layout ---------------- */
+#tabs{display:none}
+@media (max-width: 820px){
+  html{font-size:15px;overflow:auto;cursor:auto}
+  body{height:auto;min-height:100vh;width:auto;padding:0 .7rem 2rem;display:block}
+  #top{position:sticky;top:0;z-index:5;background:var(--bg);height:auto;padding:.6rem 0 .5rem;flex-wrap:wrap;gap:.4rem .8rem;border-bottom:1px solid var(--line)}
+  #brand{font-size:.95rem}
+  #paneltitle,#dots{display:none}
+  #wx{font-size:.8rem;flex:1;text-align:right}
+  #clock{font-size:1.15rem}
+  #tabs{display:flex;width:100%;gap:.3rem;overflow-x:auto}
+  #tabs button{flex:1 0 auto;background:var(--panel);color:var(--dim);border:0;border-radius:.45rem;padding:.55rem .6rem;font:inherit;font-weight:800;font-size:.82rem;letter-spacing:.04em;position:relative}
+  #tabs button.on{background:var(--gold);color:#000}
+  .ld8{position:absolute;top:.3rem;right:.3rem;width:.45rem;height:.45rem;border-radius:50%;background:var(--live)}
+  #stage{margin:.7rem 0;position:static}
+  .panel.mp{position:static;opacity:1;display:block}
+  #ticker,#paused{display:none!important}
+  .sub{margin:.4rem 0 .5rem}
+  .mngrid,.divs,.confs,.wr,.news,.gsCols{display:grid;grid-template-columns:1fr!important;grid-template-rows:none!important;gap:.7rem}
+  .games{grid-template-columns:1fr 1fr!important;gap:.6rem}
+  .rk2{grid-template-columns:1fr}
+  .card{min-height:0}
+  .card .body{padding:.7rem .8rem}
+  .line,.line .v{white-space:normal}
+  .livebox{font-size:1.5rem}
+  .g{cursor:pointer}
+  .gs{overflow:visible;gap:.7rem}
+  .gsTop{grid-template-columns:1fr 1fr;grid-template-areas:"mid mid" "a h";padding:.8rem;gap:.6rem 1.4rem;position:relative}
+  .gsTop::after{content:"–";position:absolute;left:50%;bottom:1.1rem;transform:translateX(-50%);color:var(--dim);font-size:1.6rem;font-weight:800}
+  .wli .wk{width:5.9rem;flex:none;white-space:nowrap}
+  .wli .chip{font-size:.68rem}
+  .gsTop.pre::after{content:none}
+  .gsMid{grid-area:mid;min-width:0}
+  .gsSide{grid-area:a;gap:.6rem;padding-left:.5rem;border-left-width:.3rem}
+  .gsSide.home{grid-area:h;padding-right:.5rem;border-right-width:.3rem}
+  .gsLogo{width:2.6rem;height:2.6rem}
+  .gsAb{font-size:1.25rem}
+  .gsScore{font-size:2.4rem}
+  .gsState{font-size:1.2rem}
+  .gsSit{font-size:.95rem}
+  .story{white-space:normal;font-size:1rem}
+  .box{overflow:visible}
+  .ev .d{width:5.4rem}
+  .wl{display:flex;flex-direction:column;gap:.45rem;margin-bottom:1rem}
+  .wli{display:flex;align-items:center;gap:.6rem;background:var(--panel);border-radius:.55rem;padding:.65rem .8rem;font-size:.95rem;cursor:pointer}
+  .wli span{color:var(--dim);margin-left:auto;text-align:right;font-size:.85rem}
+  .wli i{color:var(--gold);font-style:normal;font-size:1.3rem;font-weight:800}
+  .mback{display:flex;align-items:center;gap:.8rem;margin-bottom:.7rem}
+  .mback button{background:var(--panel);color:var(--gold);border:0;border-radius:.45rem;padding:.5rem .8rem;font:inherit;font-weight:800}
+  .mback span{color:var(--dim);font-weight:700;font-size:.9rem;text-transform:uppercase;letter-spacing:.05em}
+  .empty{padding:1.5rem;font-size:1rem}
+}
+@media (max-width: 520px){
+  .games{grid-template-columns:1fr!important}
+  #wx{display:none}
+}
 </style>
 </head>
 <body>
@@ -210,6 +273,7 @@ tr.cut td{border-bottom:2px dashed var(--line)}
   <div id="dots"></div>
   <div id="wx"></div>
   <div id="clock" class="tnum"></div>
+  <nav id="tabs"></nav>
 </div>
 <div id="stage"></div>
 <div id="ticker"><div id="tlabel">SCORES</div><div id="twrap"><div id="track"></div></div></div>
@@ -387,9 +451,14 @@ function spotlightGames(){
 }
 async function loadSummaries(){
   const list = spotlightGames();
-  await Promise.all(list.map(async ({ e, path, kind }) => {
+  await Promise.all(list.map(({ e, path, kind }) => {
     const age = Date.now() - (D.sumAt[e.id] || 0);
     if (kind !== 'live' && age < 15*60e3) return;           // previews and recaps only need a refresh every 15 min
+    return fetchSummary(e, path);
+  }));
+}
+async function fetchSummary(e, path){
+  {
     try {
       const s = await getJSON(`${API}${path}/summary?event=${e.id}`);
       const hc = s.header?.competitions?.[0]?.competitors || [];
@@ -423,7 +492,7 @@ async function loadSummaries(){
       };
       D.sumAt[e.id] = Date.now();
     } catch(err){}
-  }));
+  }
 }
 
 /* headlines: league news, Minnesota-tagged stories pulled to the top */
@@ -551,7 +620,7 @@ function panelMN(){
       inner = `${s.last ? `<div class="line"><span class="k">Last</span><span class="v">${resultText(s.last,t.id)}</span></div>` : ''}
         ${s.next ? `<div class="line"><span class="k">Next</span><span class="v">${nextText(s.next,t.id)}</span></div>` : ''}`;
     }
-    return `<div class="card ${s.live ? 'live' : ''}"><div class="stripe" style="background:${t.color}"></div><div class="body">
+    return `<div class="card ${s.live ? 'live' : ''}" data-mn="${i}"><div class="stripe" style="background:${t.color}"></div><div class="body">
       <div class="hdr">${logoImg(t.logo)}<div class="nm">${esc(t.label)}</div><div class="rec">${esc(t.rec)}</div></div>${inner}</div></div>`;
   });
   // wrestling card
@@ -564,7 +633,7 @@ function panelMN(){
   return { title: 'Minnesota', html: `<div class="mngrid">${cards.join('')}</div>` };
 }
 
-function gameTile(e, mnIds){
+function gameTile(e, mnIds, path){
   const live = e.state === 'in';
   const isMN = e.teams.some(x => mnIds.includes(x.id));
   const rows = e.teams.map(x => {
@@ -574,7 +643,7 @@ function gameTile(e, mnIds){
   }).join('');
   const left = e.state === 'pre' ? whenText(e.date) : esc(e.detail);
   const extra = e.state === 'pre' ? [e.odds?.line, e.odds?.ou ? 'O/U ' + e.odds.ou : '', wxShort(e)].filter(Boolean).join(' · ') : '';
-  return `<div class="g ${live ? 'live' : ''} ${isMN ? 'mn' : ''}">${rows}<div class="st ${live ? 'lv' : ''}"><span>${left}</span><span>${live ? sitText(e) || esc(e.tv) : esc(e.tv)}</span></div>${extra ? `<div class="st od"><span>${esc(extra)}</span></div>` : ''}</div>`;
+  return `<div class="g ${live ? 'live' : ''} ${isMN ? 'mn' : ''}" data-gid="${e.id}" data-path="${path || ''}">${rows}<div class="st ${live ? 'lv' : ''}"><span>${left}</span><span>${live ? sitText(e) || esc(e.tv) : esc(e.tv)}</span></div>${extra ? `<div class="st od"><span>${esc(extra)}</span></div>` : ''}</div>`;
 }
 function sortGames(list){
   const o = { in:0, pre:1, post:2 };
@@ -586,7 +655,7 @@ function panelNFL(){
   const ev = D.nfl;
   if (!ev) return { title:'NFL', html:'<div class="empty">NFL scores unavailable</div>' };
   const n = ev.length, cols = n > 12 ? 4 : 3;
-  return { title: `NFL · Week ${D.nflWeek || ''}`, html: `<div class="games" style="grid-template-columns:repeat(${cols},1fr)">${sortGames(ev).map(e => gameTile(e, mnIdsFor('football/nfl'))).join('')}</div>` };
+  return { title: `NFL · Week ${D.nflWeek || ''}`, html: `<div class="games" style="grid-template-columns:repeat(${cols},1fr)">${sortGames(ev).map(e => gameTile(e, mnIdsFor('football/nfl'), 'football/nfl')).join('')}</div>` };
 }
 function panelNBA(){
   const today = D.nba || [], y = (D.nbaY || []).filter(e => e.state === 'post');
@@ -595,8 +664,8 @@ function panelNBA(){
   const maxY = Math.max(0, 16 - today.length);
   return { title: 'NBA', html: `
     <div class="sub">Today</div>
-    <div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${today.length ? sortGames(today).map(e => gameTile(e, ids)).join('') : '<div class="empty" style="grid-column:1/-1;padding:1rem">No games today</div>'}</div>
-    ${y.length && maxY ? `<div class="sub" style="margin-top:.9rem">Last night</div><div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${y.slice(0,Math.min(maxY,8)).map(e => gameTile(e, ids)).join('')}</div>` : ''}` };
+    <div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${today.length ? sortGames(today).map(e => gameTile(e, ids, 'basketball/nba')).join('') : '<div class="empty" style="grid-column:1/-1;padding:1rem">No games today</div>'}</div>
+    ${y.length && maxY ? `<div class="sub" style="margin-top:.9rem">Last night</div><div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${y.slice(0,Math.min(maxY,8)).map(e => gameTile(e, ids, 'basketball/nba')).join('')}</div>` : ''}` };
 }
 function panelNFLStand(){
   if (!D.nflStand) return { title:'NFL Standings', html:'<div class="empty">Standings unavailable</div>' };
@@ -803,7 +872,7 @@ function panelGame(g){
   const isMN = CFG.mnTeams.some(t => e.teams.some(x => x.id === t.id && t.path === g.path));
   const title = (e.state === 'pre' ? (ymd(new Date(e.date)) === ymd(new Date()) ? 'Game Day · ' : 'Preview · ') : live ? 'Live · ' : 'Recap · ') + `${a.abbr} @ ${h.abbr}`;
   return { title, html: `<div class="gs ${isMN ? 'gsMN' : ''}">
-    <div class="gsTop">${side(a,false)}<div class="gsMid">${mid}</div>${side(h,true)}</div>${story}
+    <div class="gsTop ${e.state === 'pre' ? 'pre' : ''}">${side(a,false)}<div class="gsMid">${mid}</div>${side(h,true)}</div>${story}
     <div class="gsCols" style="grid-template-columns:1.2fr 1fr 1.2fr">${cols}</div></div>` };
 }
 
@@ -922,6 +991,88 @@ function setTicker(html){
 $('#track').addEventListener('animationiteration', () => { if (pendingTicker){ setTicker(pendingTicker); pendingTicker = null; } });
 function updateTicker(first){ const h = tickerHTML(); if (first) setTicker(h); else pendingTicker = h; }
 
+
+/* ============================================================
+   PHONE LAYOUT: tabs instead of rotation, tap a game for details
+   ============================================================ */
+const PHONE_MQ = window.matchMedia('(max-width: 820px)');
+const PHONE = PHONE_MQ.matches;
+PHONE_MQ.addEventListener?.('change', () => location.reload());
+const TABS = [['mn','Minnesota'],['nfl','NFL'],['nba','NBA'],['wr','Wrestling'],['news','News']];
+let mTab = 'mn', mDetail = null;
+try { mTab = localStorage.getItem('gsTab') || 'mn'; } catch(e){}
+function refreshView(){ if (PHONE) mobileRender(true); else rerenderSoft(); }
+
+function kindLabel(g){
+  const e = findEvent(g.e.id) || g.e;
+  if (e.state === 'in') return '<span class="pill">LIVE</span>';
+  if (e.state === 'pre') return `<span class="chip">${ymd(new Date(e.date)) === ymd(new Date()) ? 'GAME DAY' : 'PREVIEW'}</span>`;
+  return '<span class="chip">RECAP</span>';
+}
+function watchList(){
+  const isMNgame = g => CFG.mnTeams.some(t => t.path === g.path && g.e.teams.some(x => x.id === t.id));
+  const games = spotlightGames().filter(g => g.kind !== 'live' || isMNgame(g));
+  if (!games.length) return '';
+  return `<div class="sub">Tap a game for details</div><div class="wl">${games.map(g => {
+    const e = findEvent(g.e.id) || g.e; const [a,h] = e.teams;
+    const right = e.state === 'pre' ? whenText(e.date) : `${esc(a.abbr)} ${esc(a.score)} – ${esc(h.score)} ${esc(h.abbr)} · ${esc(e.detail)}`;
+    return `<div class="wli" data-gid="${e.id}" data-path="${g.path}"><span class="wk">${kindLabel(g)}</span><b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b><span>${right}</span><i>›</i></div>`;
+  }).join('')}</div>`;
+}
+function mobileContent(){
+  if (mDetail){
+    const e = findEvent(mDetail.id) || mDetail.e;
+    const p = panelGame({ e, path: mDetail.path });
+    return `<div class="mback"><button data-back>‹ Back</button><span>${esc(p.title)}</span></div>${p.html}`;
+  }
+  switch (mTab){
+    case 'mn':   return watchList() + panelMN().html;
+    case 'nfl':  return `<div class="sub">${esc(panelNFL().title)}</div>` + panelNFL().html + `<div class="sub" style="margin-top:1.2rem">Standings</div>` + panelNFLStand().html;
+    case 'nba':  return panelNBA().html + `<div class="sub" style="margin-top:1.2rem">Standings</div>` + panelNBAStand().html;
+    case 'wr':   return panelWrestling().html;
+    case 'news': return panelNews().html;
+  }
+  return '';
+}
+function mobileRender(keepScroll){
+  const y = window.scrollY;
+  const anyLive = CFG.mnTeams.some((t,i) => t.events && teamState(t,i).live);
+  const nflLive = (D.nfl || []).some(e => e.state === 'in'), nbaLive = (D.nba || []).some(e => e.state === 'in');
+  const liveDot = { mn: anyLive, nfl: nflLive, nba: nbaLive };
+  $('#tabs').innerHTML = TABS.map(([k,l]) => `<button data-tab="${k}" class="${k === mTab && !mDetail ? 'on' : ''}">${l}${liveDot[k] ? '<i class="ld8"></i>' : ''}</button>`).join('');
+  $('#stage').innerHTML = `<div class="panel show mp">${mobileContent()}</div>`;
+  if (keepScroll) window.scrollTo(0, y);
+}
+async function openGame(id, path){
+  const e = findEvent(id);
+  mDetail = { id, path, e };
+  history.pushState({ game: id }, '');
+  mobileRender(); window.scrollTo(0, 0);
+  if (e && (!D.sum[id] || e.state === 'in')) { await fetchSummary(e, path); if (mDetail && mDetail.id === id) mobileRender(true); }
+}
+function closeGame(){ mDetail = null; mobileRender(); }
+window.addEventListener('popstate', () => { if (mDetail) closeGame(); });
+document.addEventListener('click', ev => {
+  if (!PHONE) return;
+  const t = ev.target.closest('[data-tab],[data-back],[data-gid],[data-mn]');
+  if (!t) return;
+  if (t.dataset.tab){ mTab = t.dataset.tab; mDetail = null; try { localStorage.setItem('gsTab', mTab); } catch(e){} mobileRender(); window.scrollTo(0,0); return; }
+  if (t.hasAttribute('data-back')){ history.back(); return; }
+  if (t.dataset.gid){ openGame(t.dataset.gid, t.dataset.path); return; }
+  if (t.dataset.mn){
+    const i = +t.dataset.mn, team = CFG.mnTeams[i], st = teamState(team, i);
+    const recent = st.last && Date.now() - new Date(st.last.date) < 36*3600e3;
+    const e = st.live || (st.next && previewTime(st.next.date) ? st.next : null) || (recent ? st.last : null) || st.next || st.last;
+    if (e) openGame(e.id, team.path);
+  }
+});
+// keep live game details fresh on the phone
+setInterval(async () => {
+  if (!PHONE || !mDetail) return;
+  const e = findEvent(mDetail.id);
+  if (e && e.state === 'in'){ await fetchSummary(e, mDetail.path); mobileRender(true); }
+}, 60e3);
+
 /* ---------------- clock + refresh loops ---------------- */
 function tick(){ $('#clock').textContent = fmt(new Date(), { hour:'numeric', minute:'2-digit' }); }
 async function boot(){
@@ -929,12 +1080,12 @@ async function boot(){
   loadWeather(); setInterval(loadWeather, 30*60e3);
   await Promise.all([loadMN(), loadStandings(), loadNews()]);
   await loadBoards();
-  render(); schedule(); updateTicker(true);
-  setInterval(async () => { await loadNews(); updateTicker(); }, 15*60e3);                     // headlines
-  setInterval(async () => { await loadBoards(); rerenderSoft(); updateTicker(); }, 60e3);       // live scores every minute
-  setInterval(async () => { await loadMN(); rerenderSoft(); }, 15*60e3);                         // team schedules
-  setInterval(async () => { await loadStandings(); rerenderSoft(); }, 30*60e3);                  // standings
-  setTimeout(() => location.reload(), 6*3600e3);                                                  // fresh start every 6 hours
+  if (PHONE) mobileRender(); else { render(); schedule(); updateTicker(true); }
+  setInterval(async () => { await loadNews(); updateTicker(); if (PHONE) refreshView(); }, 15*60e3);                     // headlines
+  setInterval(async () => { await loadBoards(); refreshView(); updateTicker(); }, 60e3);       // live scores every minute
+  setInterval(async () => { await loadMN(); refreshView(); }, 15*60e3);                         // team schedules
+  setInterval(async () => { await loadStandings(); refreshView(); }, 30*60e3);                  // standings
+  if (!PHONE) setTimeout(() => location.reload(), 6*3600e3);                                     // fresh start every 6 hours (TV)
   try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e){}
 }
 boot();
