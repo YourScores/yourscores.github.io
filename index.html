@@ -272,6 +272,9 @@ tr.cut td{border-bottom:2px dashed var(--line)}
   .gsTop{grid-template-columns:1fr 1fr;grid-template-areas:"mid mid" "a h";padding:.8rem;gap:.6rem 1.4rem;position:relative}
   .gsTop::after{content:"–";position:absolute;left:50%;bottom:1.1rem;transform:translateX(-50%);color:var(--dim);font-size:1.6rem;font-weight:800}
   .wli .wk{width:5.9rem;flex:none;white-space:nowrap}
+  .wli .wt{display:flex;flex-direction:column;align-items:center;width:2.4rem;flex:none}
+  .wli .wt img{width:1.5rem;height:1.5rem;object-fit:contain}
+  .wli .wt small{font-size:.55rem;color:var(--dim);font-weight:800;letter-spacing:.05em}
   .wli .chip{font-size:.68rem}
   .gsTop.pre::after{content:none}
   .gsMid{grid-area:mid;min-width:0}
@@ -287,7 +290,11 @@ tr.cut td{border-bottom:2px dashed var(--line)}
   .ev .d{width:5.4rem}
   .wl{display:flex;flex-direction:column;gap:.45rem;margin-bottom:1rem}
   .wli{display:flex;align-items:center;gap:.6rem;background:var(--panel);border-radius:.55rem;padding:.65rem .8rem;font-size:.95rem;cursor:pointer}
-  .wli span{color:var(--dim);margin-left:auto;text-align:right;font-size:.85rem}
+  .wli .wr{color:var(--dim);margin-left:auto;text-align:right;font-size:.78rem;line-height:1.25}
+  .wli b{white-space:nowrap}
+  .wli{gap:.5rem;padding:.6rem .65rem}
+  .wli .wk{width:5.3rem!important}
+  .wli .wk .chip{margin-right:0}
   .wli i{color:var(--gold);font-style:normal;font-size:1.3rem;font-weight:800}
   .mback{display:flex;align-items:center;gap:.8rem;margin-bottom:.7rem}
   .mback button{background:var(--panel);color:var(--gold);border:0;border-radius:.45rem;padding:.5rem .8rem;font:inherit;font-weight:800}
@@ -731,7 +738,9 @@ function panelNFLStand(){
     <tr><th>Team</th><th>W-L${dv.rows.some(r=>r.t)?'-T':''}</th><th>Diff</th><th>Strk</th></tr>
     ${dv.rows.map(r => `<tr class="${r.abbr==='MIN'?'mn mnv':''}"><td>${logoImg(r.logo)}${esc(r.abbr)}</td><td>${r.w}-${r.l}${r.t?'-'+r.t:''}</td><td>${esc(r.diff)}</td><td>${esc(r.strk)}</td></tr>`).join('')}
   </table></div>`;
-  return { title:'NFL Standings', html:`<div class="divs">${D.nflStand.map(box).join('')}</div>` };
+  const ord = n => (/^NFC/.test(n) ? 0 : 4) + Math.max(0, ['North','South','East','West'].findIndex(d => n.endsWith(d)));
+  const divs = [...D.nflStand].sort((x,y) => ord(x.name) - ord(y.name));
+  return { title:'NFL Standings', html:`<div class="divs">${divs.map(box).join('')}</div>` };
 }
 function panelNBAStand(){
   if (!D.nbaStand) return { title:'NBA Standings', html:'<div class="empty">Standings unavailable</div>' };
@@ -739,7 +748,8 @@ function panelNBAStand(){
     <tr><th>#</th><th style="text-align:left">Team</th><th>W</th><th>L</th><th>GB</th><th>L10</th><th>Strk</th></tr>
     ${c.rows.map((r,i) => `<tr class="${r.abbr==='MIN'?'mn mnw':''} ${i===5||i===9?'cut':''}"><td>${r.seed||i+1}</td><td style="text-align:left">${logoImg(r.logo)}${esc(r.abbr)}</td><td>${r.w}</td><td>${r.l}</td><td>${esc(r.gb)}</td><td>${esc(r.l10)}</td><td>${esc(r.strk)}</td></tr>`).join('')}
   </table></div>`;
-  return { title:'NBA Standings', html:`<div class="confs">${D.nbaStand.map(box).join('')}</div>` };
+  const confs = [...D.nbaStand].sort((x,y) => (/west/i.test(y.name) ? 1 : 0) - (/west/i.test(x.name) ? 1 : 0));
+  return { title:'NBA Standings', html:`<div class="confs">${confs.map(box).join('')}</div>` };
 }
 
 /* wrestling helpers */
@@ -1090,13 +1100,25 @@ function kindLabel(g){
 function watchList(){
   const isMNgame = g => CFG.mnTeams.some(t => t.path === g.path && g.e.teams.some(x => x.id === t.id));
   const games = spotlightGames().filter(g => g.kind !== 'live' || isMNgame(g));
-  if (!games.length) return '';
-  return `<div class="sub">Tap a game for details</div><div class="wl">${games.map(g => {
+  const LEAGUE = { 'football/nfl':'NFL', 'basketball/nba':'NBA', 'hockey/nhl':'NHL', 'baseball/mlb':'MLB', 'basketball/wnba':'WNBA',
+    'soccer/usa.1':'MLS', 'football/college-football':'CFB', 'basketball/mens-college-basketball':'CBB' };
+  const lines = games.map(g => {
     const e = findEvent(g.e.id) || g.e; const [a,h] = e.teams;
+    const mt = CFG.mnTeams.find(t => t.path === g.path && e.teams.some(x => x.id === t.id));
     const right = e.state === 'pre' ? whenText(e.date) : `${esc(a.abbr)} ${esc(a.score)} – ${esc(h.score)} ${esc(h.abbr)} · ${esc(e.detail)}`;
-    const neon = CFG.mnTeams.some(t => t.path === g.path && e.teams.some(x => x.id === t.id)) ? neonFor(g.path) : '';
-    return `<div class="wli ${neon}" data-gid="${e.id}" data-path="${g.path}"><span class="wk">${kindLabel(g)}</span><b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b><span>${right}</span><i>›</i></div>`;
-  }).join('')}</div>`;
+    const neon = mt ? neonFor(g.path) : '';
+    return `<div class="wli ${neon}" data-gid="${e.id}" data-path="${g.path}"><span class="wk">${kindLabel(g)}</span><span class="wt">${logoImg(mt?.logo || '')}<small>${LEAGUE[g.path] || ''}</small></span><b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b><span class="wr">${right}</span><i>›</i></div>`;
+  });
+  // Gophers wrestling: game day (from 5 PM the night before), and the result through the next day
+  const w = wrestNext(), today = ymd(new Date()), yest = ymd(new Date(Date.now() - 864e5));
+  const wLogo = CFG.mnTeams.find(t => t.path === 'football/college-football')?.logo || '';
+  const wLine = (label, opp, right) => `<div class="wli" data-tab="wr"><span class="wk">${label}</span><span class="wt">${logoImg(wLogo)}<small>WRES</small></span><b>${esc(opp)}</b><span class="wr">${right}</span><i>›</i></div>`;
+  if (w.last && w.last.result && [today, yest].includes(ymd(wrestDate(w.last))))
+    lines.push(wLine('<span class="chip">RESULT</span>', w.last.opp, esc(w.last.result)));
+  if (w.next && (ymd(wrestDate(w.next)) === today || previewTime(wrestDate(w.next))))
+    lines.push(wLine(`<span class="chip">${ymd(wrestDate(w.next)) === today ? 'GAME DAY' : 'PREVIEW'}</span>`, w.next.opp, `${wrestWhen(w.next)}${w.next.tv ? ' · ' + esc(w.next.tv) : ''}`));
+  if (!lines.length) return '';
+  return `<div class="sub">Tap a game for details</div><div class="wl">${lines.join('')}</div>`;
 }
 function mobileContent(){
   if (mDetail){
