@@ -295,6 +295,7 @@ tr.cut td{border-bottom:2px dashed var(--line)}
   .wli{gap:.5rem;padding:.6rem .65rem}
   .wli .wk{width:5.3rem!important}
   .wli .wk .chip{margin-right:0}
+  .wli .wk{width:4.7rem!important}
   .wli .wm{display:flex;flex-direction:column;min-width:0}
   .wli .wm small{color:var(--dim);font-size:.72rem;font-weight:600}
   .wli .wr small{display:block;font-size:.7rem;opacity:.85;margin-top:.1rem}
@@ -1227,12 +1228,12 @@ function mnList(){
     'soccer/usa.1':'MLS', 'football/college-football':'CFB', 'basketball/mens-college-basketball':'CBB' };
   const today = ymd(new Date()), yest = ymd(new Date(Date.now() - 864e5));
   const chip = t => `<span class="chip">${t}</span>`;
-  const shortRes = (e, id) => {
+  const shortRes = (e, id, noOpp) => {
     if (hid(e)) return 'Score hidden';
     const me = e.teams.find(x => x.id === id), op = e.teams.find(x => x.id !== id);
     if (!me || !op) return '';
     const r = +me.score > +op.score ? 'W' : +me.score < +op.score ? 'L' : 'T';
-    return `${r} ${esc(me.score)}-${esc(op.score)} ${me.home ? 'vs' : '@'} ${esc(op.abbr)}`;
+    return `${r} ${esc(me.score)}-${esc(op.score)}` + (noOpp ? '' : ` ${me.home ? 'vs' : '@'} ${esc(op.abbr)}`);
   };
   const nextShort = (e, id) => { const me = e.teams.find(x => x.id === id), op = e.teams.find(x => x.id !== id);
     return `${me?.home ? 'vs' : '@'} ${esc(op?.abbr || '')} ${whenText(e.date)}`; };
@@ -1250,7 +1251,7 @@ function mnList(){
     else if (s.next && previewTime(s.next.date)){ e = full(s.next); kind = chip(ymd(new Date(e.date)) === today ? 'GAME DAY' : 'PREVIEW');
       right = whenText(e.date) + (e.tv ? ' · ' + esc(e.tv) : ''); sub = s.last ? 'Last: ' + shortRes(s.last, t.id) : ''; }
     else if (lastRecent){ e = full(s.last); kind = hid(e) ? chip('ON DELAY') : chip('RECAP');
-      right = hid(e) ? '<span class="hidt">Score hidden</span>' : `${shortRes(e, t.id)}`; sub = s.next ? 'Next: ' + nextShort(s.next, t.id) : ''; }
+      right = hid(e) ? '<span class="hidt">Score hidden</span>' : `${shortRes(e, t.id, true)} · Final`; sub = s.next ? 'Next: ' + nextShort(s.next, t.id) : ''; }
     else if (s.next){ e = full(s.next); kind = chip('NEXT');
       right = whenText(e.date) + (e.tv ? ' · ' + esc(e.tv) : ''); sub = s.last ? 'Last: ' + shortRes(s.last, t.id) : ''; }
     else if (s.last){ e = full(s.last); kind = chip('LAST'); right = shortRes(e, t.id); }
