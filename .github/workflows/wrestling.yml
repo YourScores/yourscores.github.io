@@ -1,4 +1,4 @@
-name: Update wrestling data
+name: Update wrestling data and team lists
 
 on:
   schedule:
@@ -23,15 +23,17 @@ jobs:
           node-version: 20
       - name: Build wrestling.json
         run: node scripts/wrestling.mjs
+      - name: Build teams.json (team picker)
+        run: node scripts/teams.mjs || true
       - name: Commit if changed
         run: |
           git config user.name "scoreboard-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           last=$(git log -1 --format=%ct)
           age=$(( $(date +%s) - last ))
-          if [ -n "$(git status --porcelain wrestling.json)" ]; then
-            git add wrestling.json
-            git commit -m "Update wrestling data"
+          if [ -n "$(git status --porcelain wrestling.json teams.json)" ]; then
+            git add wrestling.json teams.json
+            git commit -m "Update wrestling data and team lists"
           elif [ "$age" -gt 3456000 ]; then
             # GitHub pauses scheduled jobs after 60 quiet days; a small commit keeps this one alive in the offseason
             date -u +%FT%TZ > .keepalive
