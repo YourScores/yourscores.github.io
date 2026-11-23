@@ -309,6 +309,8 @@ tr.cut td{border-bottom:2px dashed var(--line)}
   .games{grid-template-columns:1fr!important}
   #wx{display:none}
 }
+/* upsets */
+.ups{background:#ff7a1a;color:#111;font-weight:900;font-size:.62em;letter-spacing:.06em;padding:.1em .45em;border-radius:.3em;margin-left:.4em;white-space:nowrap;align-self:center}
 /* delay mode */
 .hidt{color:var(--dim);font-style:italic}
 .g.hidg .row .ab{opacity:.9}
@@ -348,6 +350,7 @@ const CFG = {
   gameSeconds: 15,           // each single-game screen
   liveBoardSeconds: 25,      // NFL scoreboard holds longer while games are live
   maxGameScreens: 8,         // most live-game screens in one loop
+  upsetML: 150,              // NFL/NBA final gets an UPSET tag when the winner closed at this moneyline or longer (+150 = roughly a 40% underdog)
   previewFromHour: 17,       // Minnesota game preview starts at this hour (24h clock) the night before, and runs all game day
   tickerPxPerSec: 110,       // ticker speed
   mnTeams: [
@@ -475,6 +478,35 @@ async function loadBoards(){
     catch(e){ D[k] = D[k] || null; }
   }));
   await loadSummaries();
+  loadUpsets().then(n => { if (n) { refreshView(); updateTicker(); } });
+}
+
+/* upsets: ESPN drops odds from the scoreboard once a game ends, but the game summary keeps the closing moneyline */
+let ML = {};
+try { ML = JSON.parse(localStorage.getItem('gsML') || '{}'); } catch(e){}
+async function loadUpsets(){
+  const finals = [...(D.nfl || []), ...(D.nba || []), ...(D.nbaY || [])].filter(e => e.state === 'post' && e.lg && !(e.id in ML));
+  let n = 0;
+  await Promise.all(finals.map(async e => {
+    try {
+      const j = await getJSON(`${API}${e.lg}/summary?event=${e.id}`);
+      const pc = (j.pickcenter || []).find(p => p.homeTeamOdds?.moneyLine != null) || null;
+      ML[e.id] = pc ? { h: +pc.homeTeamOdds.moneyLine, a: +pc.awayTeamOdds.moneyLine, t: Date.now() } : { t: Date.now() };
+      n++;
+    } catch(err){}
+  }));
+  if (n){
+    const cut = Date.now() - 10*864e5; for (const k in ML) if (ML[k].t < cut) delete ML[k];
+    try { localStorage.setItem('gsML', JSON.stringify(ML)); } catch(err){}
+  }
+  return n;
+}
+function upsetML(e){
+  if (e.state !== 'post' || hid(e)) return null;
+  const m = ML[e.id]; if (!m || m.h == null) return null;
+  const w = e.teams.find(t => t.winner) || e.teams.reduce((a, b) => (+a.score > +b.score ? a : b));
+  const v = w.home ? m.h : m.a;
+  return v >= CFG.upsetML ? v : null;
 }
 
 /* game detail (scoring plays, drive, leaders, injuries) for the games that get their own screen */
@@ -772,11 +804,12 @@ function gameTile(e, mnIds, path){
     return `<div class="g hidg ${neonFor(path)} mn" data-gid="${e.id}" data-path="${path || ''}">${rows}<div class="st"><span class="hidt">Score hidden</span><span>${esc(e.tv)}</span></div></div>`;
   }
   const live = e.state === 'in';
+  const ups = upsetML(e);
   const isMN = e.teams.some(x => mnIds.includes(x.id));
   const rows = e.teams.map(x => {
     const lose = e.state === 'post' && e.teams.some(o => o !== x && +o.score > +x.score);
     const has = live && e.sit?.possession && e.sit.possession === x.id;
-    return `<div class="row ${lose ? 'lose' : ''} ${has ? 'has' : ''}">${logoImg(x.logo)}<span class="ab">${x.rank ? '<small>'+x.rank+'</small> ' : ''}${esc(x.abbr)}</span><span class="rc">${hideRec.has(x.id) ? '' : esc(x.rec)}</span>${has ? '<span class="ball"></span>' : ''}<span class="sc tnum">${e.state==='pre' ? '' : esc(x.score)}</span></div>`;
+    return `<div class="row ${lose ? 'lose' : ''} ${has ? 'has' : ''}">${logoImg(x.logo)}<span class="ab">${x.rank ? '<small>'+x.rank+'</small> ' : ''}${esc(x.abbr)}</span><span class="rc">${hideRec.has(x.id) ? '' : esc(x.rec)}</span>${has ? '<span class="ball"></span>' : ''}${ups && x.winner ? `<span class="ups">UPSET +${ups}</span>` : ''}<span class="sc tnum">${e.state==='pre' ? '' : esc(x.score)}</span></div>`;
   }).join('');
   const left = e.state === 'pre' ? whenText(e.date) : esc(e.detail);
   const extra = e.state === 'pre' ? [e.odds?.line, e.odds?.ou ? 'O/U ' + e.odds.ou : '', wxShort(e)].filter(Boolean).join(' · ') : '';
@@ -1152,7 +1185,8 @@ function tickerHTML(){
     const st = e.state === 'in' ? `<span class="lv">${esc(e.detail)}</span>` : e.state === 'post' ? `<span class="x">${esc(e.detail)}</span>` : `<span class="x">${whenText(e.date)}</span>`;
     const p = id => e.state === 'in' && e.sit?.possession === id ? '<span class="ball" style="display:inline-block"></span>' : '';
     const sc = e.state === 'pre' ? `${esc(a.abbr)} @ ${esc(h.abbr)}` : `${p(a.id)}${esc(a.abbr)} <b class="tnum">${esc(a.score)}</b> ${p(h.id)}${esc(h.abbr)} <b class="tnum">${esc(h.score)}</b>`;
-    return `<span class="ti">${sc} ${st}</span>`;
+    const u = upsetML(e);
+    return `<span class="ti">${sc} ${st}${u ? ` <span class="ups">UPSET</span>` : ''}</span>`;
   };
   const groups = [];
   const mn = [];
