@@ -101,8 +101,8 @@ tr.mnw td:first-child{box-shadow:inset .3rem 0 0 var(--neonG)}
 .g .row .sc{font-weight:800;font-size:1.35rem;min-width:2.2rem;text-align:right}
 .g .row.lose{opacity:.55}
 .g .row .sc.od{font-weight:600;font-size:.8rem;color:var(--dim);min-width:0;white-space:nowrap}
-.g .row .wn{width:.8rem;font-size:.6rem;color:var(--gold);text-align:right;margin-left:-.3rem}
-.g .st.fin{justify-content:flex-end;margin-right:.5rem}
+.g .row .wn{font-size:.65rem;color:var(--gold);margin-left:.45rem;vertical-align:.1em}
+.g .st.fin{justify-content:flex-end}
 .g .row{border-left:.3rem solid transparent;margin-left:-.6rem;padding-left:.3rem;border-radius:.2rem}
 .g .row.has{border-left-color:var(--gold);background:linear-gradient(90deg,rgba(255,198,47,.16),transparent 70%)}
 .ball{width:1.35rem;height:.85rem;flex:none;display:inline-block;vertical-align:middle;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 20'><path d='M16 1C7 1 1.5 7 1 10c.5 3 6 9 15 9s14.5-6 15-9c-.5-3-6-9-15-9z' fill='%23a0522d' stroke='%23ffc62f' stroke-width='1.2'/><path d='M10 10h12' stroke='%23fff' stroke-width='1.4' stroke-linecap='round'/><path d='M12.5 8v4M15 8v4M17.5 8v4M20 8v4' stroke='%23fff' stroke-width='1.1' stroke-linecap='round'/><path d='M4.5 6.5c1.5 2 1.5 5 0 7M27.5 6.5c-1.5 2-1.5 5 0 7' stroke='%23fff' stroke-width='1' fill='none'/></svg>") center/contain no-repeat;filter:drop-shadow(0 0 .15rem rgba(255,198,47,.45))}
@@ -825,16 +825,16 @@ function gameTile(e, mnIds, path){
     const win = post && !lose && e.teams.some(o => o !== x && +o.score < +x.score);
     const has = live && e.sit?.possession && e.sit.possession === x.id;
     const sc = pre ? `<span class="sc od">${esc(odd[x.id] || '')}</span>` : `<span class="sc tnum">${esc(x.score)}</span>`;
-    return `<div class="row ${lose ? 'lose' : ''} ${win ? 'win' : ''} ${has ? 'has' : ''}">${logoImg(x.logo)}<span class="ab">${x.rank ? '<small>'+x.rank+'</small> ' : ''}${esc(x.abbr)}</span><span class="rc">${hideRec.has(x.id) ? '' : esc(x.rec)}</span>${has ? '<span class="ball"></span>' : ''}${ups && x.winner ? `<span class="ups">UPSET +${ups}</span>` : ''}${sc}${post ? `<span class="wn">${win ? '◀' : ''}</span>` : ''}</div>`;
+    return `<div class="row ${lose ? 'lose' : ''} ${win ? 'win' : ''} ${has ? 'has' : ''}">${logoImg(x.logo)}<span class="ab">${x.rank ? '<small>'+x.rank+'</small> ' : ''}${esc(x.abbr)}</span><span class="rc">${hideRec.has(x.id) ? '' : esc(x.rec)}${win ? '<span class="wn">◀</span>' : ''}</span>${has ? '<span class="ball"></span>' : ''}${ups && x.winner ? `<span class="ups">UPSET +${ups}</span>` : ''}${sc}</div>`;
   }).join('');
   let st;
   if (pre){
     const temp = e.wx?.temp != null && !e.venue?.indoor && !path?.includes('basketball') ? `${e.wx.temp}°` : '';
-    st = `<div class="st"><span>${whenText(e.date)}</span><span>${[esc(e.tv), temp].filter(Boolean).join(' · ')}</span></div>`;
+    st = `<div class="st"><span>${whenText(e.date)}</span><span>${[isMN ? esc(e.tv) : '', temp].filter(Boolean).join(' · ')}</span></div>`;
   } else if (post){
     st = `<div class="st fin"><span></span><span>${esc(e.detail)}</span></div>`;
   } else {
-    st = `<div class="st lv"><span>${esc(e.detail)}</span><span>${sitText(e) || esc(e.tv)}</span></div>`;
+    st = `<div class="st lv"><span>${esc(e.detail)}</span><span>${sitText(e) || (isMN ? esc(e.tv) : '')}</span></div>`;
   }
   return `<div class="g ${live ? 'live' : ''} ${isMN ? 'mn ' + neonFor(path) : ''}" data-gid="${e.id}" data-path="${path || ''}">${rows}${st}</div>`;
 }
