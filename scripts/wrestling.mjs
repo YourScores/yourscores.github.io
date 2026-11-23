@@ -1,4 +1,4 @@
-// Builds wrestling.json for the Garage Scoreboard.
+// Builds wrestling.json for YourScores.
 // Sources: gophersports.com wrestling schedule (results come from the same page)
 //          ncaa.com NWCA Coaches Poll (DI team rankings)
 // If a source fails, the previous values in wrestling.json are kept.
@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 const OUT = 'wrestling.json';
 const SCHEDULE_URL = 'https://gophersports.com/sports/wrestling/schedule';
 const RANK_URL = 'https://www.ncaa.com/rankings/wrestling-men/d1/college-wrestling-rankings-nwca-coaches-poll';
-const UA = { 'user-agent': 'Mozilla/5.0 (garage-scoreboard; +https://natedogg311.github.io/garage-scoreboard/)' };
+const UA = { 'user-agent': 'Mozilla/5.0 (yourscores; +https://yourscores.github.io/)' };
 
 const prev = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : {};
 
