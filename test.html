@@ -94,7 +94,11 @@ tr.mn.mnv td{background:rgba(181,108,255,.3)}
 tr.mnv td:first-child{box-shadow:inset .3rem 0 0 var(--neonP)}
 tr.mn.mnw td{background:rgba(141,255,58,.22)}
 tr.mnw td:first-child{box-shadow:inset .3rem 0 0 var(--neonG)}
-.wolvesSub{color:var(--neonG)!important;text-shadow:0 0 .5rem rgba(141,255,58,.6)}
+.wolvesSub{color:var(--gl,var(--neonG))!important;text-shadow:0 0 .5rem color-mix(in srgb,var(--gl,var(--neonG)) 60%,transparent)}
+.g.glow,.card.glow,.wli.glow{border:2px solid var(--gl);box-shadow:0 0 .9rem color-mix(in srgb,var(--gl) 70%,transparent),inset 0 0 .5rem color-mix(in srgb,var(--gl) 22%,transparent)}
+.g.mn.glow{background:linear-gradient(90deg,color-mix(in srgb,var(--gl) 18%,transparent),var(--panel) 65%)}
+tr.mn[style] td{background:color-mix(in srgb,var(--gl) 26%,transparent)}
+tr.mn[style] td:first-child{box-shadow:inset .3rem 0 0 var(--gl)}
 .g .row{display:flex;align-items:center;gap:.6rem;font-size:1.15rem}
 .g .row img{width:1.7rem;height:1.7rem;object-fit:contain}
 .g .row .ab{font-weight:700;width:3.4rem}
@@ -313,6 +317,29 @@ tr.cut td{border-bottom:2px dashed var(--line)}
   .games{grid-template-columns:1fr!important}
   #wx{display:none}
 }
+/* delay bar, team picker */
+.shbar{flex-wrap:wrap}
+.shb{display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end}
+.shbar .shb button{display:flex;align-items:center;gap:.25rem;padding:.25rem .45rem;border-radius:1rem;opacity:.55}
+.shbar .shb button img{width:1.35rem;height:1.35rem;object-fit:contain}
+.shbar .shb button.on{opacity:1;border:2px solid var(--gl);box-shadow:0 0 .5rem color-mix(in srgb,var(--gl) 70%,transparent);color:#fff;font-size:.7rem}
+.subrow{display:flex;align-items:center;justify-content:space-between}
+.editbtn{background:none;border:1px solid var(--line);color:var(--dim);border-radius:1rem;padding:.25rem .7rem;font-size:.78rem;font-weight:700}
+.pk{display:flex;flex-direction:column;gap:.7rem}
+.pkhead{display:flex;align-items:center;justify-content:space-between;font-size:1.15rem}
+.pkhead .revbtn{margin:0;padding:.45rem 1.1rem}
+.pkmine{display:flex;flex-wrap:wrap;gap:.4rem;min-height:2rem;align-items:center;color:var(--dim);font-size:.85rem}
+.pkc{display:flex;align-items:center;gap:.3rem;background:var(--panel2);border:1px solid var(--line);border-radius:1rem;padding:.2rem .5rem .2rem .3rem;color:var(--text);font-size:.8rem;font-weight:700}
+.pkc img{width:1.2rem;height:1.2rem;object-fit:contain}.pkc i{font-style:normal;color:var(--dim);margin-left:.15rem;font-size:.95rem}
+.pklg{display:flex;gap:.35rem;overflow-x:auto;padding-bottom:.2rem}
+.pklg button{flex:none;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:1rem;padding:.35rem .75rem;font-weight:700;font-size:.8rem}
+.pklg button.on{background:var(--gold);color:#111;border-color:var(--gold)}
+#pkq{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:.5rem;padding:.6rem .7rem;font-size:1rem}
+.pkr{display:flex;align-items:center;gap:.7rem;padding:.5rem .4rem;border-bottom:1px solid var(--line);cursor:pointer}
+.pkr img{width:1.8rem;height:1.8rem;object-fit:contain}.pkr span{flex:1}.pkr i{font-style:normal;font-weight:800;color:var(--dim);font-size:1.2rem;width:1.5rem;text-align:center}
+.pkr.on{background:color-mix(in srgb,var(--gold) 12%,transparent)}.pkr.on i{color:var(--gold)}
+.pkfoot{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.4rem}
+.pkfoot button{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:.5rem;padding:.6rem;font-weight:700;font-size:.85rem}
 /* upsets */
 .ups{background:#ff7a1a;color:#111;font-weight:900;font-size:.62em;letter-spacing:.06em;padding:.1em .45em;border-radius:.3em;margin-left:.4em;white-space:nowrap;align-self:center}
 /* delay mode */
@@ -358,8 +385,8 @@ const CFG = {
   previewFromHour: 17,       // Minnesota game preview starts at this hour (24h clock) the night before, and runs all game day
   tickerPxPerSec: 110,       // ticker speed
   mnTeams: [
-    { label: 'Vikings',            path: 'football/nfl',                        team: 'min',   color: '#4f2683' },
-    { label: 'Timberwolves',       path: 'basketball/nba',                      team: 'min',   color: '#236192' },
+    { label: 'Vikings',            path: 'football/nfl',                        team: 'min',   color: '#4f2683', glow: '#b56cff', loc: 'Minnesota' },
+    { label: 'Timberwolves',       path: 'basketball/nba',                      team: 'min',   color: '#236192', glow: '#8dff3a', loc: 'Minnesota', short: 'Wolves' },
     { label: 'Wild',               path: 'hockey/nhl',                          team: 'min',   color: '#154734' },
     { label: 'Twins',              path: 'baseball/mlb',                        team: 'min',   color: '#002b5c' },
     { label: 'Lynx',               path: 'basketball/wnba',                     team: 'min',   color: '#266092' },
@@ -403,6 +430,73 @@ const CFG = {
 };
 
 /* ============================================================ */
+/* ---------------- your teams (saved in this browser) ----------------
+   No saved picks: the TV shows the Minnesota lineup; a phone opens the team picker.
+   Links: ?teams=nfl:16,nba:16,cfb:135 sets picks · ?teams=mn the Minnesota lineup · ?wres=1 adds Gophers wrestling */
+const GOPHER_LOGO = 'https://a.espncdn.com/i/teamlogos/ncaa/500/135.png';
+const LEAGUES = [
+  { code:'nfl',  path:'football/nfl',                       name:'NFL' },
+  { code:'nba',  path:'basketball/nba',                     name:'NBA' },
+  { code:'nhl',  path:'hockey/nhl',                         name:'NHL' },
+  { code:'mlb',  path:'baseball/mlb',                       name:'MLB' },
+  { code:'wnba', path:'basketball/wnba',                    name:'WNBA' },
+  { code:'mls',  path:'soccer/usa.1',                       name:'MLS' },
+  { code:'cfb',  path:'football/college-football',          name:'College FB', sport:'Football',   sb:'groups=80' },
+  { code:'cbb',  path:'basketball/mens-college-basketball', name:'College BB', sport:'Basketball', sb:'groups=50' },
+];
+const lgOf = path => LEAGUES.find(l => l.path === path);
+const DEFAULT_TEAMS = CFG.mnTeams;
+let PICKS = 'mn', WRES = true, IS_DEFAULT = true;
+function readPicks(){
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.has('wres')) localStorage.setItem('ysWres', q.get('wres') === '0' ? '0' : '1');
+    if (q.has('teams')){
+      const v = q.get('teams');
+      localStorage.setItem('ysTeams', v === 'mn' ? 'mn' : JSON.stringify(v.split(',').map(x => { const [c, id] = x.split(':'); return { c, id }; }).filter(x => lgOf((LEAGUES.find(l => l.code === x.c) || {}).path) && x.id)));
+    } else if (q.get('wres') === '1' && localStorage.getItem('ysTeams') === null) localStorage.setItem('ysTeams', 'mn');
+    if (q.has('teams') || q.has('wres')) history.replaceState(null, '', location.pathname);
+    // someone who used the app before the picker existed keeps the Minnesota lineup and wrestling
+    if (localStorage.getItem('ysTeams') === null && localStorage.getItem('gsTab') !== null){ localStorage.setItem('ysTeams', 'mn'); localStorage.setItem('ysWres', '1'); }
+    const raw = localStorage.getItem('ysTeams');
+    PICKS = raw === null ? (PHONE ? [] : 'mn') : raw === 'mn' ? 'mn' : JSON.parse(raw);
+    const wr = localStorage.getItem('ysWres');
+    WRES = wr === null ? !PHONE : wr === '1';
+  } catch(e){ PICKS = 'mn'; }
+}
+function pickToTeam(p){
+  const L = LEAGUES.find(l => l.code === p.c);
+  const col = p.col ? '#' + p.col : '#444';
+  return { label: p.l || '', path: L.path, team: p.id, color: col, sb: L.sb, logo: p.logo, abbr: p.a, loc: p.loc, short: p.s,
+    glow: p.g || ((p.c === 'nfl' || p.c === 'nba') ? lighten(col) : null) };
+}
+function applyPicks(){
+  IS_DEFAULT = PICKS === 'mn';
+  CFG.mnTeams = IS_DEFAULT ? DEFAULT_TEAMS : PICKS.map(pickToTeam);
+}
+/* ESPN team lists, used by the picker and to fill in names for teams set by a shared link */
+const TEAMLISTS = {};
+function teamList(code){
+  if (!TEAMLISTS[code]) {
+    const L = LEAGUES.find(l => l.code === code);
+    TEAMLISTS[code] = getJSON(`${API}${L.path}/teams?limit=1000`).then(j => (j.sports?.[0]?.leagues?.[0]?.teams || []).map(({ team: t }) => ({
+      c: code, id: t.id, a: t.abbreviation, name: t.displayName, loc: t.location, col: t.color || '',
+      logo: t.logos?.[0]?.href || '', l: L.sport ? `${t.location} ${L.sport}` : code === 'mls' ? t.displayName : t.shortDisplayName
+    })).sort((x, y) => x.name.localeCompare(y.name))).catch(e => { delete TEAMLISTS[code]; return []; });
+  }
+  return TEAMLISTS[code];
+}
+async function ensureMeta(){
+  if (!Array.isArray(PICKS) || PICKS.every(p => p.l)) return;
+  for (const p of PICKS){
+    if (p.l) continue;
+    const t = (await teamList(p.c)).find(x => x.id === String(p.id));
+    if (t) Object.assign(p, { l: t.l, col: t.col, logo: t.logo, a: t.a, loc: t.loc });
+  }
+  try { localStorage.setItem('ysTeams', JSON.stringify(PICKS)); } catch(e){}
+  applyPicks();
+}
+
 const API = 'https://site.api.espn.com/apis/site/v2/sports/';
 const API2 = 'https://site.api.espn.com/apis/v2/sports/';
 const D = {}; // data store
@@ -461,7 +555,7 @@ async function loadMN(){
   await Promise.all(CFG.mnTeams.map(async t => {
     try {
       const j = await getJSON(`${API}${t.path}/teams/${t.team}/schedule`);
-      t.id = j.team?.id; t.logo = j.team?.logo || j.team?.logos?.[0]?.href; t.rec = j.team?.recordSummary || '';
+      t.id = j.team?.id; t.abbr = j.team?.abbreviation || t.abbr; t.logo = j.team?.logo || j.team?.logos?.[0]?.href || t.logo; t.rec = j.team?.recordSummary || '';
       t.events = (j.events || []).map(norm); t.events.forEach(e => e.lg = t.path);
       t.err = null;
     } catch(e){ t.err = e.message; }
@@ -600,7 +694,8 @@ const NEWS = [
 ];
 async function loadNews(){
   const mn = [], top = [], seen = new Set();
-  await Promise.all(NEWS.map(async n => {
+  const extra = LEAGUES.filter(L => !NEWS.some(n => n.path === L.path) && CFG.mnTeams.some(t => t.path === L.path)).map(L => ({ path: L.path, tag: L.code.toUpperCase() }));
+  await Promise.all([...NEWS, ...extra].map(async n => {
     try {
       const j = await getJSON(`${API}${n.path}/news?limit=50`);
       const ids = CFG.mnTeams.filter(t => t.path === n.path || (n.path.includes('college') && t.path === n.path)).map(t => +t.id);
@@ -620,12 +715,12 @@ async function loadNews(){
 }
 function newsSafe(n){
   const hg = hiddenGames(n.path); if (!hg.length) return true;
-  const words = ['Minnesota'];
+  const words = [];
   for (const e of hg) for (const t of e.teams){
     if (n.tids?.includes(String(t.id))) return false;
     if (t.name) words.push(t.name);
   }
-  const s = SHIELD.find(x => x.path === n.path); if (s) words.push(s.label, s.label === 'Wolves' ? 'Timberwolves' : '');
+  CFG.mnTeams.filter(t => t.path === n.path && SH.on[tkey(t)]).forEach(t => words.push(t.label, t.loc || '', t.short || ''));
   const txt = (n.head + ' ' + n.desc).toLowerCase();
   return !words.filter(Boolean).some(w => txt.includes(w.toLowerCase()));
 }
@@ -656,6 +751,7 @@ function stRow(e){
     l10: l10?.displayValue || '' };
 }
 async function loadWrestling(){
+  if (!WRES) return;
   try {
     const j = await getJSON(`https://raw.githubusercontent.com/yourscores/yourscores.github.io/main/wrestling.json?t=${Math.floor(Date.now()/300e3)}`);
     if (j?.gophers?.length) CFG.wrestling.gophers = j.gophers;
@@ -721,10 +817,7 @@ function sitText(e){
 /* ---------------- delay mode (spoiler shield) ----------------
    Saved in this browser only. While on, a Vikings or Wolves game hides its score everywhere
    from tip/kickoff until you tap Reveal. Auto-clears 12 hours after the start. */
-const SHIELD = [
-  { key:'vik', path:'football/nfl', label:'Vikings', cls:'mnv' },
-  { key:'wol', path:'basketball/nba', label:'Wolves', cls:'mnw' }
-];
+const tkey = t => `${t.path}|${t.team}`;
 let SH = { on:{}, rev:{} };
 try { const v = JSON.parse(localStorage.getItem('gsShield') || '{}'); SH.on = v.on || {}; SH.rev = v.rev || {}; } catch(e){}
 function saveSH(){
@@ -734,12 +827,11 @@ function saveSH(){
 function hid(e, path){
   if (!e || e.state === 'pre' || SH.rev[e.id]) return null;
   const lg = path || e.lg;
-  for (const s of SHIELD){
-    if (!SH.on[s.key] || lg !== s.path) continue;
-    const t = CFG.mnTeams.find(x => x.path === s.path);
-    if (!t?.id || !e.teams.some(x => x.id === t.id)) continue;
+  for (const t of CFG.mnTeams){
+    if (!SH.on[tkey(t)] || lg !== t.path) continue;
+    if (!t.id || !e.teams.some(x => x.id === t.id)) continue;
     if (Date.now() - new Date(e.date) > 12*3600e3) continue;
-    return s;
+    return t;
   }
   return null;
 }
@@ -757,7 +849,10 @@ function hiddenBox(e, what){
     ${PHONE ? `<button class="revbtn" data-reveal="${e.id}">Reveal score</button>` : ''}</div>`;
 }
 function shieldBar(){
-  return `<div class="shbar"><span>Watching on delay?</span>${SHIELD.map(s => `<button data-shield="${s.key}" class="${SH.on[s.key] ? 'on ' + s.cls : ''}">${s.label} ${SH.on[s.key] ? 'ON' : 'off'}</button>`).join('')}</div>`;
+  const ts = CFG.mnTeams.filter((t,i) => t.events && !teamState(t,i).off);
+  if (!ts.length) return '';
+  return `<div class="shbar"><span>Watching on delay?</span><div class="shb">${ts.map(t => { const on = SH.on[tkey(t)];
+    return `<button data-shield="${esc(tkey(t))}" class="${on ? 'on' : ''}" style="--gl:${t.glow || lighten(t.color)}" title="${esc(t.label)}">${logoImg(t.logo)}${on ? '<b>ON</b>' : ''}</button>`; }).join('')}</div></div>`;
 }
 
 /* ---------------- panels ---------------- */
@@ -785,27 +880,39 @@ function panelMN(){
       inner = `${s.last ? `<div class="line"><span class="k">Last</span><span class="v">${resultText(s.last,t.id)}</span></div>` : ''}
         ${s.next ? `<div class="line"><span class="k">Next</span><span class="v">${nextText(s.next,t.id)}</span></div>` : ''}`;
     }
-    return `<div class="card ${neonFor(t.path)} ${s.live ? 'live' : ''}" data-mn="${i}"><div class="stripe" style="background:${t.color}"></div><div class="body">
+    return `<div class="card ${glowCls(t)} ${s.live ? 'live' : ''}"${glowSty(t)} data-mn="${i}"><div class="stripe" style="background:${t.color}"></div><div class="body">
       <div class="hdr">${logoImg(t.logo)}<div class="nm">${esc(t.label)}</div><div class="rec">${hiddenIds(t.path).has(t.id) ? '' : esc(t.rec)}</div></div>${inner}</div></div>`;
   });
-  // wrestling card
+  // wrestling card (Gophers add-on)
   const w = wrestNext();
-  cards.push(`<div class="card"><div class="stripe" style="background:#7a0019"></div><div class="body">
-    <div class="hdr">${logoImg(CFG.mnTeams[6].logo)}<div class="nm">Gophers Wrestling</div><div class="rec">${wrestRank() ? '#'+wrestRank() : ''}</div></div>
+  if (WRES) cards.push(`<div class="card"><div class="stripe" style="background:#7a0019"></div><div class="body">
+    <div class="hdr">${logoImg(GOPHER_LOGO)}<div class="nm">Gophers Wrestling</div><div class="rec">${wrestRank() ? '#'+wrestRank() : ''}</div></div>
     ${w.last ? `<div class="line"><span class="k">Last</span><span class="v">${esc(w.last.result || 'Result pending')} · ${esc(w.last.opp)}</span></div>` : ''}
     ${w.next ? `<div class="line"><span class="k">Next</span><span class="v">${esc(w.next.opp)} · ${wrestWhen(w.next)}${w.next.tv ? ' · '+esc(w.next.tv) : ''}</span></div>` : ''}
   </div></div>`);
   const live = cards.filter(Boolean), rows = Math.ceil(live.length / 3);
   const strip = offTeams.length ? `<div class="offrow">${offTeams.map(t => `<div class="offc" style="border-color:${t.color}">${logoImg(t.logo)}<b>${esc(t.label)}</b><span>Offseason</span></div>`).join('')}</div>` : '';
-  return { title: 'Minnesota', html: `<div class="mnwrap"><div class="mngrid" style="grid-template-rows:repeat(${rows},1fr)">${live.join('')}</div>${strip}</div>` };
+  return { title: IS_DEFAULT ? 'Minnesota' : 'My Teams', html: `<div class="mnwrap"><div class="mngrid" style="grid-template-rows:repeat(${rows},1fr)">${live.join('')}</div>${strip}</div>` };
 }
 
-function neonFor(path){ return path === 'football/nfl' ? 'mnv' : path === 'basketball/nba' ? 'mnw' : ''; }
+/* each picked NFL/NBA team glows in its own color (Vikings purple, Wolves green by default) */
+function lighten(hex){
+  const h = (hex || '#888').replace('#',''); let [r,g,b] = [0,2,4].map(i => parseInt(h.substr(i,2),16) / 255);
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b); let H = 0, S = 0, L = (mx+mn)/2;
+  if (mx !== mn){ const d = mx-mn; S = L > .5 ? d/(2-mx-mn) : d/(mx+mn); H = mx === r ? (g-b)/d + (g<b?6:0) : mx === g ? (b-r)/d + 2 : (r-g)/d + 4; H /= 6; }
+  return `hsl(${Math.round(H*360)} ${Math.max(70, Math.round(S*100))}% 62%)`;
+}
+function teamFor(e, path){ return CFG.mnTeams.find(t => t.path === path && t.id && e?.teams?.some(x => x.id === t.id)) || null; }
+const glowCls = t => t?.glow ? 'glow' : '';
+const glowSty = t => t?.glow ? ` style="--gl:${t.glow}"` : '';
+const myAbbr = (path, abbr) => CFG.mnTeams.find(t => t.path === path && t.abbr && t.abbr === abbr) || null;
+const stSty = (path, abbr) => { const t = myAbbr(path, abbr); return t ? ` style="--gl:${t.glow || lighten(t.color)}"` : ''; };
 function gameTile(e, mnIds, path){
   const hideRec = hiddenIds(path);
   if (hid(e, path)){
     const rows = e.teams.map(x => `<div class="row">${logoImg(x.logo)}<span class="ab">${esc(x.abbr)}</span><span class="rc"></span><span class="sc"></span></div>`).join('');
-    return `<div class="g hidg ${neonFor(path)} mn" data-gid="${e.id}" data-path="${path || ''}">${rows}<div class="st"><span class="hidt">Score hidden</span><span>${esc(e.tv)}</span></div></div>`;
+    const ht = teamFor(e, path);
+    return `<div class="g hidg ${glowCls(ht)} mn"${glowSty(ht)} data-gid="${e.id}" data-path="${path || ''}">${rows}<div class="st"><span class="hidt">Score hidden</span><span>${esc(e.tv)}</span></div></div>`;
   }
   const live = e.state === 'in', pre = e.state === 'pre', post = e.state === 'post';
   const ups = upsetML(e);
@@ -837,7 +944,8 @@ function gameTile(e, mnIds, path){
   } else {
     st = `<div class="st lv"><span>${esc(e.detail)}</span><span>${sitText(e) || (isMN ? esc(e.tv) : '')}</span></div>`;
   }
-  return `<div class="g ${live ? 'live' : ''} ${isMN ? 'mn ' + neonFor(path) : ''}" data-gid="${e.id}" data-path="${path || ''}">${rows}${st}</div>`;
+  const mt = isMN ? teamFor(e, path) : null;
+  return `<div class="g ${live ? 'live' : ''} ${isMN ? 'mn ' + glowCls(mt) : ''}"${glowSty(mt)} data-gid="${e.id}" data-path="${path || ''}">${rows}${st}</div>`;
 }
 function sortGames(list){
   const o = { in:0, pre:1, post:2 };
@@ -855,16 +963,12 @@ function panelNBA(){
   const today = D.nba || [], y = (D.nbaY || []).filter(e => e.state === 'post');
   if (!D.nba && !D.nbaY) return { title:'NBA', html:'<div class="empty">NBA scores unavailable</div>' };
   const ids = mnIdsFor('basketball/nba');
-  // Timberwolves first: the live game, or the last result, plus the next game
-  const wi = CFG.mnTeams.findIndex(t => t.path === 'basketball/nba');
-  const wt = CFG.mnTeams[wi];
-  const ws = wt?.events ? teamState(wt, wi) : null;
-  const wolves = [];
-  if (ws){
-    const cur = ws.live || ws.last;
-    if (cur) wolves.push(findEvent(cur.id) || cur);
-    if (ws.next && (!cur || ws.next.id !== cur.id)) wolves.push(findEvent(ws.next.id) || ws.next);
-  }
+  // your NBA team(s) first: the live game or last result, plus the next game
+  const mine = CFG.mnTeams.map((t,i) => [t,i]).filter(([t]) => t.path === 'basketball/nba' && t.events);
+  const wolves = [], seenW = new Set();
+  const addW = e => { if (e && !seenW.has(e.id)){ seenW.add(e.id); wolves.push(findEvent(e.id) || e); } };
+  mine.forEach(([t,i]) => { const ws = teamState(t, i); addW(ws.live || ws.last); addW(ws.next); });
+  const wt = mine[0]?.[0];
   const wolvesIds = new Set(wolves.map(e => e.id));
   const notWolves = e => !wolvesIds.has(e.id) && !e.teams.some(x => ids.includes(x.id));
   const todayIds = new Set(today.map(e => e.id));
@@ -874,7 +978,7 @@ function panelNBA(){
   const maxY = PHONE ? 8 : Math.max(0, rowsLeft * 4);
   const tiles = list => list.map(e => gameTile(e, ids, 'basketball/nba')).join('');
   return { title: 'NBA', html: `
-    ${wolves.length ? `<div class="sub wolvesSub">Timberwolves</div><div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${tiles(wolves)}</div>` : ''}
+    ${wolves.length ? `<div class="sub wolvesSub" style="--gl:${wt?.glow || lighten(wt?.color)}">${mine.length > 1 ? 'Your teams' : esc(wt?.label || '')}</div><div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${tiles(wolves)}</div>` : ''}
     <div class="sub" style="margin-top:.9rem">Today</div>
     <div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${todayL.length ? tiles(todayL) : '<div class="empty" style="grid-column:1/-1;padding:1rem">No other games today</div>'}</div>
     ${yL.length && maxY ? `<div class="sub" style="margin-top:.9rem">Yesterday</div><div class="games" style="grid-template-columns:repeat(4,1fr);flex:none">${tiles(yL.slice(0, maxY))}</div>` : ''}` };
@@ -885,9 +989,11 @@ function panelNFLStand(){
   if (hg.length) return { title:'NFL Standings', html: hiddenBox(hg[0], 'Standings hidden until you reveal this game') };
   const box = dv => `<div class="div"><h3>${esc(dv.name.toUpperCase())}</h3><table class="tnum">
     <tr><th>Team</th><th>W-L${dv.rows.some(r=>r.t)?'-T':''}</th><th>Diff</th><th>Strk</th></tr>
-    ${dv.rows.map(r => `<tr class="${r.abbr==='MIN'?'mn mnv':''}"><td>${logoImg(r.logo)}${esc(r.abbr)}</td><td>${r.w}-${r.l}${r.t?'-'+r.t:''}</td><td>${esc(r.diff)}</td><td>${esc(r.strk)}</td></tr>`).join('')}
+    ${dv.rows.map(r => `<tr class="${myAbbr('football/nfl', r.abbr) ? 'mn' : ''}"${stSty('football/nfl', r.abbr)}><td>${logoImg(r.logo)}${esc(r.abbr)}</td><td>${r.w}-${r.l}${r.t?'-'+r.t:''}</td><td>${esc(r.diff)}</td><td>${esc(r.strk)}</td></tr>`).join('')}
   </table></div>`;
-  const ord = n => (/^NFC/.test(n) ? 0 : 4) + Math.max(0, ['North','South','East','West'].findIndex(d => n.endsWith(d)));
+  // your conference first (NFC by default), then North, South, East, West
+  const myConf = D.nflStand.find(dv => dv.rows.some(r => myAbbr('football/nfl', r.abbr)))?.name.slice(0,3) || 'NFC';
+  const ord = n => (n.startsWith(myConf) ? 0 : 4) + Math.max(0, ['North','South','East','West'].findIndex(d => n.endsWith(d)));
   const divs = [...D.nflStand].sort((x,y) => ord(x.name) - ord(y.name));
   return { title:'NFL Standings', html:`<div class="divs">${divs.map(box).join('')}</div>` };
 }
@@ -897,9 +1003,11 @@ function panelNBAStand(){
   if (hg.length) return { title:'NBA Standings', html: hiddenBox(hg[0], 'Standings hidden until you reveal this game') };
   const box = c => `<div class="conf"><h3>${esc(c.name.toUpperCase())}</h3><table class="tnum">
     <tr><th>#</th><th style="text-align:left">Team</th><th>W</th><th>L</th><th>GB</th><th>L10</th><th>Strk</th></tr>
-    ${c.rows.map((r,i) => `<tr class="${r.abbr==='MIN'?'mn mnw':''} ${i===5||i===9?'cut':''}"><td>${r.seed||i+1}</td><td style="text-align:left">${logoImg(r.logo)}${esc(r.abbr)}</td><td>${r.w}</td><td>${r.l}</td><td>${esc(r.gb)}</td><td>${esc(r.l10)}</td><td>${esc(r.strk)}</td></tr>`).join('')}
+    ${c.rows.map((r,i) => `<tr class="${myAbbr('basketball/nba', r.abbr) ? 'mn' : ''} ${i===5||i===9?'cut':''}"${stSty('basketball/nba', r.abbr)}><td>${r.seed||i+1}</td><td style="text-align:left">${logoImg(r.logo)}${esc(r.abbr)}</td><td>${r.w}</td><td>${r.l}</td><td>${esc(r.gb)}</td><td>${esc(r.l10)}</td><td>${esc(r.strk)}</td></tr>`).join('')}
   </table></div>`;
-  const confs = [...D.nbaStand].sort((x,y) => (/west/i.test(y.name) ? 1 : 0) - (/west/i.test(x.name) ? 1 : 0));
+  // your conference first (West by default)
+  const mineC = c => c.rows.some(r => myAbbr('basketball/nba', r.abbr)) ? 2 : /west/i.test(c.name) ? 1 : 0;
+  const confs = [...D.nbaStand].sort((x,y) => mineC(y) - mineC(x));
   return { title:'NBA Standings', html:`<div class="confs">${confs.map(box).join('')}</div>` };
 }
 
@@ -1126,7 +1234,7 @@ function panelNews(){
   const N = { mn: N0.mn.filter(newsSafe), top: N0.top.filter(newsSafe) };
   const item = n => `<div class="nw"><div class="nh"><span class="chip">${esc(n.tag)}</span>${esc(n.head)}</div><div class="nd">${esc(n.desc)}</div><div class="na">${ago(n.when)}</div></div>`;
   return { title:'Headlines', html:`<div class="news">
-    <div class="box"><h3>MINNESOTA</h3>${N.mn.length ? N.mn.map(item).join('') : '<div class="dim">No Minnesota stories right now</div>'}</div>
+    <div class="box"><h3>${IS_DEFAULT ? 'MINNESOTA' : 'YOUR TEAMS'}</h3>${N.mn.length ? N.mn.map(item).join('') : '<div class="dim">No stories on your teams right now</div>'}</div>
     <div class="box"><h3>AROUND THE LEAGUES</h3>${N.top.map(item).join('')}</div></div>` };
 }
 
@@ -1221,8 +1329,8 @@ function tickerHTML(){
     if (e && !s.off) mn.push(`<span class="ti"><b>${esc(t.label)}</b> ${item(e).replace(/^<span class="ti">|<\/span>$/g,'')}</span>`);
   });
   const w = wrestNext();
-  if (w.next) mn.push(`<span class="ti"><b>Gophers Wrestling</b> ${esc(w.next.opp)} <span class="x">${wrestWhen(w.next)}</span></span>`);
-  if (mn.length) groups.push(`<span class="lg">MINNESOTA</span>${mn.join('')}`);
+  if (WRES && w.next) mn.push(`<span class="ti"><b>Gophers Wrestling</b> ${esc(w.next.opp)} <span class="x">${wrestWhen(w.next)}</span></span>`);
+  if (mn.length) groups.push(`<span class="lg">${IS_DEFAULT ? 'MINNESOTA' : 'MY TEAMS'}</span>${mn.join('')}`);
   if (D.nfl?.length) groups.push(`<span class="lg">NFL</span>${sortGames(D.nfl).map(item).join('')}`);
   const nba = [...(D.nba||[]), ...((D.nba||[]).length < 4 ? (D.nbaY||[]).filter(e=>e.state==='post') : [])];
   if (nba.length) groups.push(`<span class="lg">NBA</span>${sortGames(nba).map(item).join('')}`);
@@ -1246,8 +1354,8 @@ function updateTicker(first){ const h = tickerHTML(); if (first) setTicker(h); e
 const PHONE_MQ = window.matchMedia('(max-width: 820px)');
 const PHONE = PHONE_MQ.matches;
 PHONE_MQ.addEventListener?.('change', () => location.reload());
-const TABS = [['mn','Minnesota'],['nfl','NFL'],['nba','NBA'],['wr','Wrestling'],['news','News']];
-let mTab = 'mn', mDetail = null;
+const tabsList = () => [['mn', IS_DEFAULT ? 'Minnesota' : 'My Teams'], ['nfl','NFL'], ['nba','NBA'], ...(WRES ? [['wr','Wrestling']] : []), ['news','News']];
+let mTab = 'mn', mDetail = null, mPick = false;
 try { mTab = localStorage.getItem('gsTab') || 'mn'; } catch(e){}
 function refreshView(){ if (PHONE) mobileRender(true); else rerenderSoft(); }
 
@@ -1267,7 +1375,7 @@ function watchList(){
     const e = findEvent(g.e.id) || g.e; const [a,h] = e.teams;
     const mt = CFG.mnTeams.find(t => t.path === g.path && e.teams.some(x => x.id === t.id));
     const right = hid(e, g.path) ? '<span class="hidt">Score hidden</span>' : e.state === 'pre' ? whenText(e.date) : `${esc(a.abbr)} ${esc(a.score)} – ${esc(h.score)} ${esc(h.abbr)} · ${esc(e.detail)}`;
-    const neon = mt ? neonFor(g.path) : '';
+    const neon = mt ? glowCls(mt) : '';
     return `<div class="wli ${neon}" data-gid="${e.id}" data-path="${g.path}"><span class="wk">${kindLabel(g)}</span><span class="wt">${logoImg(mt?.logo || '')}<small>${LEAGUE[g.path] || ''}</small></span><b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b><span class="wr">${right}</span><i>›</i></div>`;
   });
   // Gophers wrestling: game day (from 5 PM the night before), and the result through the next day
@@ -1317,11 +1425,11 @@ function mnList(){
     if (!e) return;
     const [a, h] = e.teams;
     const rec = hiddenIds(t.path).has(t.id) ? '' : t.rec;
-    rows.push({ live: !!s.live, html: `<div class="wli ${neonFor(t.path)}" data-gid="${e.id}" data-path="${t.path}"><span class="wk">${kind}</span><span class="wt">${logoImg(t.logo)}<small>${LEAGUE[t.path] || ''}</small></span><span class="wm"><b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b>${rec ? `<small>${esc(rec)}</small>` : ''}</span><span class="wr">${right}${sub ? `<small>${sub}</small>` : ''}</span><i>›</i></div>` });
+    rows.push({ live: !!s.live, html: `<div class="wli ${glowCls(t)}"${glowSty(t)} data-gid="${e.id}" data-path="${t.path}"><span class="wk">${kind}</span><span class="wt">${logoImg(t.logo)}<small>${LEAGUE[t.path] || ''}</small></span><span class="wm"><b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b>${rec ? `<small>${esc(rec)}</small>` : ''}</span><span class="wr">${right}${sub ? `<small>${sub}</small>` : ''}</span><i>›</i></div>` });
   });
   // Gophers wrestling
-  const w = wrestNext(), wLogo = CFG.mnTeams.find(t => t.path === 'football/college-football')?.logo || '';
-  if (w.next || w.last){
+  const w = wrestNext(), wLogo = GOPHER_LOGO;
+  if (WRES && (w.next || w.last)){
     const wd = e => ymd(wrestDate(e));
     let kind, opp, right, sub = '';
     const lastLine = w.last && w.last.result ? `Last: ${esc(w.last.result)} ${esc(w.last.opp)}` : '';
@@ -1334,8 +1442,51 @@ function mnList(){
   }
   const list = [...rows.filter(r => r.live), ...rows.filter(r => !r.live)].map(r => r.html).join('');
   const strip = off.length ? `<div class="offrow">${off.map(t => `<div class="offc" style="border-color:${t.color}">${logoImg(t.logo)}<b>${esc(t.label)}</b><span>Offseason</span></div>`).join('')}</div>` : '';
-  return `<div class="sub">Tap a game for details</div><div class="wl">${list}</div>${strip}`;
+  if (!rows.length) return `<div class="empty" style="padding:2rem 1rem">No teams picked yet<br><button class="revbtn" data-pick>Pick your teams</button></div>`;
+  return `<div class="subrow"><div class="sub">Tap a game for details</div><button class="editbtn" data-pick>Edit teams</button></div><div class="wl">${list}</div>${strip}`;
 }
+/* ---------------- team picker (phone) ---------------- */
+let SELW = [], pkLeague = 'nfl', pkQuery = '';
+function startPicker(){
+  if (Array.isArray(PICKS)) SELW = PICKS.map(p => ({ ...p }));
+  else SELW = CFG.mnTeams.filter(t => t.id && lgOf(t.path)).map(t => ({ c: lgOf(t.path).code, id: t.id, l: t.label, col: (t.color || '').replace('#',''), logo: t.logo, a: t.abbr, loc: t.loc, s: t.short, g: t.glow || undefined }));
+  pkQuery = ''; mPick = true; mobileRender(); window.scrollTo(0, 0);
+}
+function pickerMine(){
+  return SELW.length ? SELW.map((p, i) => `<span class="pkc">${logoImg(p.logo)}${esc(p.l || p.a || p.id)}<i data-pkrm="${i}">×</i></span>`).join('') : 'Tap teams below to add them';
+}
+function pickerHTML(){
+  const L = LEAGUES.find(l => l.code === pkLeague);
+  return `<div class="pk">
+    <div class="pkhead"><b>Pick your teams</b><button class="revbtn" data-pkdone>Done</button></div>
+    <div class="pkmine" id="pkmine">${pickerMine()}</div>
+    <div class="pklg">${LEAGUES.map(l => `<button data-pklg="${l.code}" class="${l.code === pkLeague ? 'on' : ''}">${l.name}</button>`).join('')}</div>
+    <input id="pkq" type="search" placeholder="Search ${esc(L.name)} teams" value="${esc(pkQuery)}" autocomplete="off">
+    <div id="pklist"><div class="dim" style="padding:1rem">Loading teams…</div></div>
+    <div class="pkfoot"><button data-pkshare>Share my teams</button>${WRES || IS_DEFAULT ? '<button data-pkmn>Use Minnesota lineup</button>' : ''}</div>
+  </div>`;
+}
+async function pickerList(){
+  const code = pkLeague, list = await teamList(code);
+  if (!mPick || code !== pkLeague) return;
+  const q = pkQuery.trim().toLowerCase();
+  const rows = list.filter(t => !q || [t.name, t.a, t.loc].some(v => (v || '').toLowerCase().includes(q)));
+  const sel = new Set(SELW.filter(p => p.c === code).map(p => String(p.id)));
+  const el = document.getElementById('pklist'); if (!el) return;
+  el.innerHTML = rows.length ? rows.map(t => `<div class="pkr ${sel.has(t.id) ? 'on' : ''}" data-pkt="${code}:${t.id}"><img loading="lazy" src="${esc(t.logo)}" alt=""><span>${esc(t.name)}</span><i>${sel.has(t.id) ? '✓' : '+'}</i></div>`).join('')
+    : `<div class="dim" style="padding:1rem">No teams match "${esc(pkQuery)}"</div>`;
+}
+function pickerRefresh(){ const m = document.getElementById('pkmine'); if (m) m.innerHTML = pickerMine(); pickerList(); }
+function savePicks(v){ try { localStorage.setItem('ysTeams', typeof v === 'string' ? v : JSON.stringify(v)); } catch(e){} location.replace(location.pathname); }
+async function sharePicks(btn){
+  const url = `${location.origin}${location.pathname}?teams=${SELW.map(p => p.c + ':' + p.id).join(',')}`;
+  try {
+    if (navigator.share) await navigator.share({ title: 'YourScores', text: 'My teams on YourScores', url });
+    else { await navigator.clipboard.writeText(url); btn.textContent = 'Link copied'; }
+  } catch(e){}
+}
+document.addEventListener('input', ev => { if (ev.target.id === 'pkq'){ pkQuery = ev.target.value; pickerList(); } });
+
 function mobileContent(){
   if (mDetail){
     const e = findEvent(mDetail.id) || mDetail.e;
@@ -1356,7 +1507,9 @@ function mobileRender(keepScroll){
   const anyLive = CFG.mnTeams.some((t,i) => t.events && teamState(t,i).live);
   const nflLive = (D.nfl || []).some(e => e.state === 'in'), nbaLive = (D.nba || []).some(e => e.state === 'in');
   const liveDot = { mn: anyLive, nfl: nflLive, nba: nbaLive };
-  $('#tabs').innerHTML = TABS.map(([k,l]) => `<button data-tab="${k}" class="${k === mTab && !mDetail ? 'on' : ''}">${l}${liveDot[k] ? '<i class="ld8"></i>' : ''}</button>`).join('');
+  if (mTab === 'wr' && !WRES) mTab = 'mn';
+  $('#tabs').innerHTML = tabsList().map(([k,l]) => `<button data-tab="${k}" class="${k === mTab && !mDetail ? 'on' : ''}">${l}${liveDot[k] ? '<i class="ld8"></i>' : ''}</button>`).join('');
+  if (mPick){ $('#stage').innerHTML = `<div class="panel show mp">${pickerHTML()}</div>`; pickerList(); return; }
   $('#stage').innerHTML = `<div class="panel show mp">${mobileContent()}</div>`;
   if (keepScroll) window.scrollTo(0, y);
 }
@@ -1371,11 +1524,23 @@ function closeGame(){ mDetail = null; mobileRender(); }
 window.addEventListener('popstate', () => { if (mDetail) closeGame(); });
 document.addEventListener('click', ev => {
   if (!PHONE) return;
-  const t = ev.target.closest('[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
+  const t = ev.target.closest('[data-pick],[data-pkdone],[data-pklg],[data-pkt],[data-pkrm],[data-pkshare],[data-pkmn],[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
   if (!t) return;
-  if (t.dataset.shield){ const k = t.dataset.shield; SH.on[k] = !SH.on[k]; saveSH(); mobileRender(true); return; }
+  if (t.hasAttribute('data-pick')){ startPicker(); return; }
+  if (t.hasAttribute('data-pkdone')){ if (SELW.length) savePicks(SELW); else { mPick = false; mobileRender(); } return; }
+  if (t.dataset.pklg){ pkLeague = t.dataset.pklg; pkQuery = ''; mobileRender(); return; }
+  if (t.dataset.pkrm){ SELW.splice(+t.dataset.pkrm, 1); pickerRefresh(); return; }
+  if (t.dataset.pkt){
+    const [c, id] = t.dataset.pkt.split(':'), i = SELW.findIndex(p => p.c === c && String(p.id) === id);
+    if (i >= 0) SELW.splice(i, 1);
+    else teamList(c).then(list => { const x = list.find(z => z.id === id); if (x){ SELW.push({ c, id, l: x.l, col: x.col, logo: x.logo, a: x.a, loc: x.loc }); pickerRefresh(); } });
+    pickerRefresh(); return;
+  }
+  if (t.hasAttribute('data-pkshare')){ sharePicks(t); return; }
+  if (t.hasAttribute('data-pkmn')){ savePicks('mn'); return; }
+  if (t.dataset.shield){ const k = t.dataset.shield; SH.on[k] = !SH.on[k]; if (!SH.on[k]) delete SH.on[k]; saveSH(); mobileRender(true); return; }
   if (t.dataset.reveal){ SH.rev[t.dataset.reveal] = Date.now(); saveSH(); mobileRender(true); return; }
-  if (t.dataset.tab){ mTab = t.dataset.tab; mDetail = null; try { localStorage.setItem('gsTab', mTab); } catch(e){} mobileRender(); window.scrollTo(0,0); return; }
+  if (t.dataset.tab){ mTab = t.dataset.tab; mDetail = null; mPick = false; try { localStorage.setItem('gsTab', mTab); } catch(e){} mobileRender(); window.scrollTo(0,0); return; }
   if (t.hasAttribute('data-back')){ history.back(); return; }
   if (t.dataset.gid){ openGame(t.dataset.gid, t.dataset.path); return; }
   if (t.dataset.mn){
@@ -1395,6 +1560,9 @@ setInterval(async () => {
 /* ---------------- clock + refresh loops ---------------- */
 function tick(){ $('#clock').textContent = fmt(new Date(), { hour:'numeric', minute:'2-digit' }); }
 async function boot(){
+  readPicks(); applyPicks();
+  if (!IS_DEFAULT) await ensureMeta();
+  if (PHONE && !IS_DEFAULT && !CFG.mnTeams.length){ mPick = true; SELW = []; }
   tick(); setInterval(tick, 10e3);
   loadWeather(); setInterval(loadWeather, 30*60e3);
   await Promise.all([loadMN(), loadStandings(), loadNews(), loadWrestling()]);
