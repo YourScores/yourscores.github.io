@@ -16,7 +16,7 @@ for (const [code, path] of Object.entries(LEAGUES)){
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const j = await r.json();
     const teams = (j.sports?.[0]?.leagues?.[0]?.teams || []).map(({ team: t }) =>
-      [t.id, t.abbreviation || '', t.displayName || '', t.location || '', t.shortDisplayName || '', t.color || '', t.logos?.[0]?.href || '']);
+      [t.id, t.abbreviation || '', t.displayName || '', t.location || '', t.shortDisplayName || '', t.color || '', t.logos?.[0]?.href || '', t.alternateColor || '']);
     if (teams.length < 10) throw new Error(`only ${teams.length} teams`);
     teams.sort((a, b) => a[2].localeCompare(b[2]));
     out[code] = teams;
@@ -25,7 +25,7 @@ for (const [code, path] of Object.entries(LEAGUES)){
     if (prev[code]) out[code] = prev[code];
   }
 }
-// columns: id, abbreviation, display name, location, short name, color, logo
+// columns: id, abbreviation, display name, location, short name, color, logo, alternate color
 const json = JSON.stringify(out);
 if (json !== JSON.stringify(prev)) writeFileSync(OUT, json + '\n');
 console.log(Object.entries(out).map(([k, v]) => `${k} ${v.length}`).join(', '));
