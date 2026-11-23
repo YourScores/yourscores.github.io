@@ -1,6 +1,6 @@
 {
- "name": "Garage Scoreboard",
- "short_name": "Scoreboard",
+ "name": "YourScores",
+ "short_name": "YourScores",
  "start_url": "./",
  "scope": "./",
  "display": "standalone",

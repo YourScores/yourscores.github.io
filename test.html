@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Garage Scoreboard</title>
+<title>YourScores</title>
+<meta name="apple-mobile-web-app-title" content="YourScores">
 <meta name="theme-color" content="#07090d">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -331,7 +332,7 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 </head>
 <body>
 <div id="top">
-  <div id="brand">GARAGE <span>SCOREBOARD</span></div>
+  <div id="brand">YOUR<span>SCORES</span></div>
   <div id="paneltitle"></div>
   <div id="dots"></div>
   <div id="wx"></div>
@@ -656,7 +657,7 @@ function stRow(e){
 }
 async function loadWrestling(){
   try {
-    const j = await getJSON(`https://raw.githubusercontent.com/natedogg311/garage-scoreboard/main/wrestling.json?t=${Math.floor(Date.now()/300e3)}`);
+    const j = await getJSON(`https://raw.githubusercontent.com/yourscores/yourscores.github.io/main/wrestling.json?t=${Math.floor(Date.now()/300e3)}`);
     if (j?.gophers?.length) CFG.wrestling.gophers = j.gophers;
     if (j?.top?.length >= 10){ CFG.wrestling.top = j.top; CFG.wrestling.rankSource = j.rankSource || CFG.wrestling.rankSource; CFG.wrestling.rankUpdated = j.rankUpdated || ''; }
   } catch(e){}
