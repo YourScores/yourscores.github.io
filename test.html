@@ -295,6 +295,9 @@ tr.cut td{border-bottom:2px dashed var(--line)}
   .wli{gap:.5rem;padding:.6rem .65rem}
   .wli .wk{width:5.3rem!important}
   .wli .wk .chip{margin-right:0}
+  .wli .wm{display:flex;flex-direction:column;min-width:0}
+  .wli .wm small{color:var(--dim);font-size:.72rem;font-weight:600}
+  .wli .wr small{display:block;font-size:.7rem;opacity:.85;margin-top:.1rem}
   .wli i{color:var(--gold);font-style:normal;font-size:1.3rem;font-weight:800}
   .mback{display:flex;align-items:center;gap:.8rem;margin-bottom:.7rem}
   .mback button{background:var(--panel);color:var(--gold);border:0;border-radius:.45rem;padding:.5rem .8rem;font:inherit;font-weight:800}
@@ -1218,6 +1221,61 @@ function watchList(){
   if (!lines.length) return '';
   return `<div class="sub">Tap a game for details</div><div class="wl">${lines.join('')}</div>`;
 }
+/* phone Minnesota tab: one skinny line per in-season team, most relevant game first */
+function mnList(){
+  const LEAGUE = { 'football/nfl':'NFL', 'basketball/nba':'NBA', 'hockey/nhl':'NHL', 'baseball/mlb':'MLB', 'basketball/wnba':'WNBA',
+    'soccer/usa.1':'MLS', 'football/college-football':'CFB', 'basketball/mens-college-basketball':'CBB' };
+  const today = ymd(new Date()), yest = ymd(new Date(Date.now() - 864e5));
+  const chip = t => `<span class="chip">${t}</span>`;
+  const shortRes = (e, id) => {
+    if (hid(e)) return 'Score hidden';
+    const me = e.teams.find(x => x.id === id), op = e.teams.find(x => x.id !== id);
+    if (!me || !op) return '';
+    const r = +me.score > +op.score ? 'W' : +me.score < +op.score ? 'L' : 'T';
+    return `${r} ${esc(me.score)}-${esc(op.score)} ${me.home ? 'vs' : '@'} ${esc(op.abbr)}`;
+  };
+  const nextShort = (e, id) => { const me = e.teams.find(x => x.id === id), op = e.teams.find(x => x.id !== id);
+    return `${me?.home ? 'vs' : '@'} ${esc(op?.abbr || '')} ${whenText(e.date)}`; };
+  const rows = [], off = [];
+  CFG.mnTeams.forEach((t, i) => {
+    if (!t.events) return;
+    const s = teamState(t, i);
+    if (s.off){ off.push(t); return; }
+    const full = e => findEvent(e.id) || e;
+    const lastRecent = s.last && [today, yest].includes(ymd(new Date(s.last.date)));
+    let e, kind, right = '', sub = '';
+    if (s.live){ e = full(s.live); kind = hid(e) ? chip('ON DELAY') : '<span class="pill">LIVE</span>';
+      right = hid(e) ? '<span class="hidt">Score hidden</span>' : `${esc(e.teams[0].abbr)} ${esc(e.teams[0].score)} – ${esc(e.teams[1].score)} ${esc(e.teams[1].abbr)}`;
+      sub = hid(e) ? '' : esc(e.detail) + (e.tv ? ' · ' + esc(e.tv) : ''); }
+    else if (s.next && previewTime(s.next.date)){ e = full(s.next); kind = chip(ymd(new Date(e.date)) === today ? 'GAME DAY' : 'PREVIEW');
+      right = whenText(e.date) + (e.tv ? ' · ' + esc(e.tv) : ''); sub = s.last ? 'Last: ' + shortRes(s.last, t.id) : ''; }
+    else if (lastRecent){ e = full(s.last); kind = hid(e) ? chip('ON DELAY') : chip('RECAP');
+      right = hid(e) ? '<span class="hidt">Score hidden</span>' : `${shortRes(e, t.id)}`; sub = s.next ? 'Next: ' + nextShort(s.next, t.id) : ''; }
+    else if (s.next){ e = full(s.next); kind = chip('NEXT');
+      right = whenText(e.date) + (e.tv ? ' · ' + esc(e.tv) : ''); sub = s.last ? 'Last: ' + shortRes(s.last, t.id) : ''; }
+    else if (s.last){ e = full(s.last); kind = chip('LAST'); right = shortRes(e, t.id); }
+    if (!e) return;
+    const [a, h] = e.teams;
+    const rec = hiddenIds(t.path).has(t.id) ? '' : t.rec;
+    rows.push({ live: !!s.live, html: `<div class="wli ${neonFor(t.path)}" data-gid="${e.id}" data-path="${t.path}"><span class="wk">${kind}</span><span class="wt">${logoImg(t.logo)}<small>${LEAGUE[t.path] || ''}</small></span><span class="wm"><b>${esc(a?.abbr)} @ ${esc(h?.abbr)}</b>${rec ? `<small>${esc(rec)}</small>` : ''}</span><span class="wr">${right}${sub ? `<small>${sub}</small>` : ''}</span><i>›</i></div>` });
+  });
+  // Gophers wrestling
+  const w = wrestNext(), wLogo = CFG.mnTeams.find(t => t.path === 'football/college-football')?.logo || '';
+  if (w.next || w.last){
+    const wd = e => ymd(wrestDate(e));
+    let kind, opp, right, sub = '';
+    const lastLine = w.last && w.last.result ? `Last: ${esc(w.last.result)} ${esc(w.last.opp)}` : '';
+    if (w.next && (wd(w.next) === today || previewTime(wrestDate(w.next)))){ kind = wd(w.next) === today ? 'GAME DAY' : 'PREVIEW'; opp = w.next.opp; right = wrestWhen(w.next) + (w.next.tv ? ' · ' + esc(w.next.tv) : ''); sub = lastLine; }
+    else if (w.last && w.last.result && [today, yest].includes(wd(w.last))){ kind = 'RESULT'; opp = w.last.opp; right = esc(w.last.result); sub = w.next ? `Next: ${esc(w.next.opp)} ${wrestWhen(w.next)}` : ''; }
+    else if (w.next){ kind = 'NEXT'; opp = w.next.opp; right = wrestWhen(w.next) + (w.next.tv ? ' · ' + esc(w.next.tv) : ''); sub = lastLine; }
+    else { kind = 'LAST'; opp = w.last.opp; right = esc(w.last.result || ''); }
+    const rk = wrestRank();
+    rows.push({ live: false, html: `<div class="wli" data-tab="wr"><span class="wk">${chip(kind)}</span><span class="wt">${logoImg(wLogo)}<small>WRES</small></span><span class="wm"><b>${esc(opp)}</b>${rk ? `<small>#${rk}</small>` : ''}</span><span class="wr">${right}${sub ? `<small>${sub}</small>` : ''}</span><i>›</i></div>` });
+  }
+  const list = [...rows.filter(r => r.live), ...rows.filter(r => !r.live)].map(r => r.html).join('');
+  const strip = off.length ? `<div class="offrow">${off.map(t => `<div class="offc" style="border-color:${t.color}">${logoImg(t.logo)}<b>${esc(t.label)}</b><span>Offseason</span></div>`).join('')}</div>` : '';
+  return `<div class="sub">Tap a game for details</div><div class="wl">${list}</div>${strip}`;
+}
 function mobileContent(){
   if (mDetail){
     const e = findEvent(mDetail.id) || mDetail.e;
@@ -1225,7 +1283,7 @@ function mobileContent(){
     return `<div class="mback"><button data-back>‹ Back</button><span>${esc(p.title)}</span></div>${p.html}`;
   }
   switch (mTab){
-    case 'mn':   return shieldBar() + watchList() + panelMN().html;
+    case 'mn':   return shieldBar() + mnList();
     case 'nfl':  return `<div class="sub">${esc(panelNFL().title)}</div>` + panelNFL().html + `<div class="sub" style="margin-top:1.2rem">Standings</div>` + panelNFLStand().html;
     case 'nba':  return panelNBA().html + `<div class="sub" style="margin-top:1.2rem">Standings</div>` + panelNBAStand().html;
     case 'wr':   return panelWrestling().html;
