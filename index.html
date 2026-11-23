@@ -356,10 +356,11 @@ const CFG = {
     { label: 'Gophers Football',   path: 'football/college-football',           team: '135',   color: '#7a0019', sb: 'groups=5' },
     { label: 'Gophers Basketball', path: 'basketball/mens-college-basketball',  team: '135',   color: '#7a0019', sb: 'groups=7' },
   ],
-  // ESPN has no college wrestling feed, so this section is updated by hand.
+  // ESPN has no college wrestling feed. A GitHub Action refreshes wrestling.json every 2 hours
+  // (gophersports.com schedule + NWCA Coaches Poll); this block is only the fallback if that file can't be read.
   wrestling: {
     rankSource: 'FloWrestling DI team rankings, 2026-27 (source skips No. 12)',
-    rankUpdated: 'Nov 2026',
+    rankUpdated: 'updated Nov 2026',
     top: [
       [1,'Penn State',150],[2,'Oklahoma State',124.5],[3,'Nebraska',73],[4,'Iowa',67.5],
       [5,'Virginia Tech',64.5],[6,'Stanford',63],[7,'Ohio State',51],[8,'Minnesota',45],
@@ -614,6 +615,13 @@ function stRow(e){
     pct: v('winPercent')||0, seed: v('playoffSeed'), gb: dv('gamesBehind'), strk: dv('streak'), diff: dv('differential') || dv('pointDifferential'),
     l10: l10?.displayValue || '' };
 }
+async function loadWrestling(){
+  try {
+    const j = await getJSON(`https://raw.githubusercontent.com/natedogg311/garage-scoreboard/main/wrestling.json?t=${Math.floor(Date.now()/300e3)}`);
+    if (j?.gophers?.length) CFG.wrestling.gophers = j.gophers;
+    if (j?.top?.length >= 10){ CFG.wrestling.top = j.top; CFG.wrestling.rankSource = j.rankSource || CFG.wrestling.rankSource; CFG.wrestling.rankUpdated = j.rankUpdated || ''; }
+  } catch(e){}
+}
 async function loadWeather(){
   try {
     const w = CFG.weather;
@@ -867,7 +875,7 @@ function panelWrestling(){
   const ranked = g.filter(e => !e.result && wrestDate(e) > now && rankOf(e.opp) && rankOf(e.opp) <= 10)
     .map(e => `#${rankOf(e.opp)} ${e.opp.replace(/^(vs|at)\s+/,'')} ${fmt(wrestDate(e),{month:'numeric',day:'numeric'})}`).join(' · ');
   return { title: 'NCAA Wrestling', html: `<div class="wr">
-    <div class="wrbox"><h3>TEAM RANKINGS · TOP 20</h3>${rk}<div class="note">${esc(W.rankSource)} · updated ${esc(W.rankUpdated)}</div></div>
+    <div class="wrbox"><h3>TEAM RANKINGS · TOP 20</h3>${rk}<div class="note">${esc(W.rankSource)} · ${esc(W.rankUpdated)}</div></div>
     <div class="wrbox"><h3>GOPHERS SCHEDULE</h3>${evs}
       ${ranked ? `<div class="note" style="color:var(--text)"><span class="rkd">Top-10 duals ahead:</span> ${esc(ranked)}</div>` : ''}</div>
   </div>` };
@@ -1269,13 +1277,14 @@ function tick(){ $('#clock').textContent = fmt(new Date(), { hour:'numeric', min
 async function boot(){
   tick(); setInterval(tick, 10e3);
   loadWeather(); setInterval(loadWeather, 30*60e3);
-  await Promise.all([loadMN(), loadStandings(), loadNews()]);
+  await Promise.all([loadMN(), loadStandings(), loadNews(), loadWrestling()]);
   await loadBoards();
   if (PHONE) mobileRender(); else { render(); schedule(); updateTicker(true); }
   setInterval(async () => { await loadNews(); updateTicker(); if (PHONE) refreshView(); }, 15*60e3);                     // headlines
   setInterval(async () => { await loadBoards(); refreshView(); updateTicker(); }, 60e3);       // live scores every minute
   setInterval(async () => { await loadMN(); refreshView(); }, 15*60e3);                         // team schedules
   setInterval(async () => { await loadStandings(); refreshView(); }, 30*60e3);                  // standings
+  setInterval(async () => { await loadWrestling(); refreshView(); updateTicker(); }, 30*60e3);  // wrestling (GitHub Action data)
   if (!PHONE) setTimeout(() => location.reload(), 6*3600e3);                                     // fresh start every 6 hours (TV)
   try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e){}
 }
