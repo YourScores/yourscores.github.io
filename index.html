@@ -350,7 +350,7 @@ const CFG = {
   gameSeconds: 15,           // each single-game screen
   liveBoardSeconds: 25,      // NFL scoreboard holds longer while games are live
   maxGameScreens: 8,         // most live-game screens in one loop
-  upsetML: 150,              // NFL/NBA final gets an UPSET tag when the winner closed at this moneyline or longer (+150 = roughly a 40% underdog)
+  upsetML: 100,              // NFL/NBA final gets an UPSET tag when the winner was the moneyline underdog (+100 or longer)
   previewFromHour: 17,       // Minnesota game preview starts at this hour (24h clock) the night before, and runs all game day
   tickerPxPerSec: 110,       // ticker speed
   mnTeams: [
@@ -505,8 +505,8 @@ function upsetML(e){
   if (e.state !== 'post' || hid(e)) return null;
   const m = ML[e.id]; if (!m || m.h == null) return null;
   const w = e.teams.find(t => t.winner) || e.teams.reduce((a, b) => (+a.score > +b.score ? a : b));
-  const v = w.home ? m.h : m.a;
-  return v >= CFG.upsetML ? v : null;
+  const v = w.home ? m.h : m.a, lv = w.home ? m.a : m.h;
+  return v >= CFG.upsetML && v > lv ? v : null;
 }
 
 /* game detail (scoring plays, drive, leaders, injuries) for the games that get their own screen */
