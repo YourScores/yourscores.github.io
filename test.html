@@ -906,10 +906,12 @@ function leadersBox(sum, e, emptyMsg){
       : `<div class="ld"><span class="lc">${esc(c.name.replace(/ Yards$/,'').replace(/ Leader$/,''))}</span><span class="lw">${esc(c.who)}</span><span class="lv tnum">${esc(c.val)}</span></div>`).join('') || '<div class="dim">No stats yet</div>'}</div>`;
   }).join('');
 }
-function scoringBox(sum, max){
+function scoringBox(sum, max, live){
   const sp = sum?.scoring || [];
   if (!sp.length) return '<div class="dim">No scoring yet</div>';
-  return sp.slice(-(max || 7)).reverse().map(p => `<div class="sp"><span class="sq">Q${p.per} ${esc(p.clock)}</span><span class="st2">${esc(p.team)} ${esc(p.type)}</span><span class="stx">${esc(p.text)}</span><span class="ss tnum">${p.a ?? ''}-${p.h ?? ''}</span></div>`).join('');
+  // phone: every scoring play (newest first while live, in game order once final); TV: the latest few to fit the screen
+  const list = PHONE ? (live ? [...sp].reverse() : sp) : sp.slice(-(max || 7)).reverse();
+  return list.map(p => `<div class="sp"><span class="sq">Q${p.per} ${esc(p.clock)}</span><span class="st2">${esc(p.team)} ${esc(p.type)}</span><span class="stx">${esc(p.text)}</span><span class="ss tnum">${p.a ?? ''}-${p.h ?? ''}</span></div>`).join('');
 }
 function injuryBox(sum, t, max){
   const L = (sum?.injuries || []).find(x => x.abbr === t.abbr)?.list || [];
@@ -1036,7 +1038,7 @@ function panelGame(g){
       <div style="margin-top:1rem">${lineScore(e, sum)}</div>
       ${wpNow ? `<h3 style="margin-top:1rem">WIN PROBABILITY</h3>${wpNow}${wpChart(sum, e)}` : ''}</div>`;
     cols = fb
-      ? `${playBox}<div class="box"><h3>LEADERS</h3>${leadersBox(sum, e)}</div><div class="box"><h3>TEAM STATS</h3>${statsBox(sum, e, g.path)}<h3 style="margin-top:.8rem">SCORING</h3>${scoringBox(sum, 4)}</div>`
+      ? `${playBox}<div class="box"><h3>LEADERS</h3>${leadersBox(sum, e)}</div><div class="box"><h3>TEAM STATS</h3>${statsBox(sum, e, g.path)}<h3 style="margin-top:.8rem">SCORING</h3>${scoringBox(sum, 4, true)}</div>`
       : `${playBox}<div class="box"><h3>LEADERS</h3>${leadersBox(sum, e)}</div><div class="box"><h3>TEAM STATS</h3>${statsBox(sum, e, g.path)}</div>`;
   } else {
     // final: post-game card
