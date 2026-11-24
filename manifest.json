@@ -20,5 +20,12 @@
    "type": "image/png",
    "purpose": "any"
   }
+ ],
+ "id": "/",
+ "related_applications": [
+  {
+   "platform": "webapp",
+   "url": "https://yourscores.github.io/manifest.json"
+  }
  ]
 }

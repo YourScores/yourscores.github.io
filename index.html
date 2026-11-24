@@ -1560,7 +1560,9 @@ document.addEventListener('input', ev => { if (ev.target.id === 'pkq'){ pkQuery 
    Hidden once installed; if dismissed it comes back once, a day or more later. */
 let installEvt = null;
 const IS_IOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const installed = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let appOnPhone = false;   // the app is already installed, even though this is a browser tab
+const installed = () => appOnPhone || window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+if (navigator.getInstalledRelatedApps) navigator.getInstalledRelatedApps().then(a => { if (a && a.length){ appOnPhone = true; if (PHONE && mTab === 'mn' && !mDetail && !mPick) mobileRender(true); } }).catch(() => {});
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (PHONE && !mDetail && !mPick && mTab === 'mn') mobileRender(true); });
 window.addEventListener('appinstalled', () => { try { localStorage.setItem('ysInstall', JSON.stringify({ done: 1 })); } catch(e){} if (PHONE) mobileRender(true); });
 function installState(){ try { return JSON.parse(localStorage.getItem('ysInstall') || '{}'); } catch(e){ return {}; } }
@@ -1572,7 +1574,7 @@ function installCard(){
   let body;
   if (installEvt) body = `<p>One tap and it opens like an app, full screen.</p><button class="revbtn" data-install>Add to home screen</button>`;
   else if (IS_IOS) body = `<ol><li>Tap the <b>Share</b> button ${share} <span class="dim">(bottom of Safari, top right in Chrome)</span></li><li>Scroll down and tap <b>Add to Home Screen</b></li><li>Tap <b>Add</b></li></ol>`;
-  else body = `<ol><li>Tap the <b>⋮</b> menu at the top right of Chrome</li><li>Tap <b>Add to Home screen</b> or <b>Install app</b></li><li>Tap <b>Install</b> (or <b>Add</b>)</li></ol>`;
+  else body = `<ol><li>Tap the <b>⋮</b> menu at the top right of Chrome</li><li>Tap <b>Add to Home screen</b> or <b>Install app</b></li><li>Tap <b>Install</b> (or <b>Add</b>)</li></ol><p style="margin-top:.4rem">If the menu shows <b>Open app</b> instead, it's already installed. Look for YourScores on your home screen.</p>`;
   return `<div class="inst"><button class="instx" data-installx aria-label="Dismiss">×</button><b>Put YourScores on your home screen</b>${body}</div>`;
 }
 async function doInstall(){
