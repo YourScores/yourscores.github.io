@@ -905,7 +905,14 @@ function shieldBar(){
 }
 
 /* ---------------- panels ---------------- */
-function logoImg(src, cls=''){ return src ? `<img class="${cls}" src="${esc(src)}" alt="" onerror="this.style.visibility='hidden'">` : ''; }
+// ESPN logos come in a version made for dark backgrounds (black logos like Iowa or the Raiders turn white/outlined);
+// use it, and fall back to the regular logo if a team doesn't have one
+function logoImg(src, cls=''){
+  if (!src) return '';
+  const dark = /\/i\/teamlogos\/[a-z]+\/500\//.test(src) ? src.replace(/(\/i\/teamlogos\/[a-z]+)\/500\//, '$1/500-dark/') : '';
+  return dark ? `<img class="${cls}" src="${esc(dark)}" alt="" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='${esc(src)}'}else this.style.visibility='hidden'">`
+    : `<img class="${cls}" src="${esc(src)}" alt="" onerror="this.style.visibility='hidden'">`;
+}
 
 function panelMN(){
   const offTeams = [];
@@ -1599,10 +1606,10 @@ async function pickerList(){
   const code = pkLeague, list = await teamList(code);
   if (!mPick || code !== pkLeague) return;
   const q = pkQuery.trim().toLowerCase();
-  const rows = list.filter(t => !q || [t.name, t.a, t.loc].some(v => (v || '').toLowerCase().includes(q)));
+  const rows = list.filter(t => t.logo && (!q || [t.name, t.a, t.loc].some(v => (v || '').toLowerCase().includes(q))));
   const sel = new Set(SELW.filter(p => p.c === code).map(p => String(p.id)));
   const el = document.getElementById('pklist'); if (!el) return;
-  el.innerHTML = rows.length ? rows.map(t => `<div class="pkr ${sel.has(t.id) ? 'on' : ''}" data-pkt="${code}:${t.id}"><img loading="lazy" src="${esc(t.logo)}" alt=""><span>${esc(t.name)}</span><i>${sel.has(t.id) ? '✓' : '+'}</i></div>`).join('')
+  el.innerHTML = rows.length ? rows.map(t => `<div class="pkr ${sel.has(t.id) ? 'on' : ''}" data-pkt="${code}:${t.id}">${logoImg(t.logo).replace('<img ', '<img loading="lazy" ')}<span>${esc(t.name)}</span><i>${sel.has(t.id) ? '✓' : '+'}</i></div>`).join('')
     : `<div class="dim" style="padding:1rem">No teams match "${esc(pkQuery)}"</div>`;
 }
 function pickerRefresh(){ persistSel(); const m = document.getElementById('pkmine'); if (m) m.innerHTML = pickerMine(); pickerList(); }
