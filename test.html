@@ -1014,7 +1014,7 @@ function gameTile(e, mnIds, path){
   if (hid(e, path)){
     const rows = e.teams.map(x => `<div class="row">${logoImg(x.logo)}<span class="ab">${esc(x.abbr)}</span><span class="rc"></span><span class="sc"></span></div>`).join('');
     const ht = teamFor(e, path), hg = ht && e.state === 'in' ? tglow(ht) : null;
-    return `<div class="g hidg mn ${hg ? 'glow' : ''}"${hg ? ` style="--gl:${hg}"` : ''} data-gid="${e.id}" data-path="${path || ''}">${rows}<div class="st"><span class="hidt">Score hidden</span><span>${esc(e.tv)}</span></div></div>`;
+    return `<div class="g hidg mn ${hg ? 'glow' : ''}"${hg ? ` style="--gl:${hg}"` : ''} data-gid="${e.id}" data-path="${path || ''}">${rows}<div class="st"><span>${e.state === 'in' ? `<b style="color:var(--gold)">${esc(e.detail)}</b>` : 'Final'}</span>${PHONE ? `<button class="showbtn" data-reveal="${e.id}">Show score</button>` : '<span class="hidt">Score hidden</span>'}</div></div>`;
   }
   const live = e.state === 'in', pre = e.state === 'pre', post = e.state === 'post';
   const ups = upsetML(e);
