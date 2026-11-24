@@ -1,6 +1,6 @@
 {
  "rankSource": "NWCA Coaches Poll (ncaa.com)",
- "rankUpdated": "through Nov. 15, 2026",
+ "rankUpdated": "through Nov. 22, 2026",
  "top": [
   [
    1,
@@ -10,97 +10,97 @@
   [
    2,
    "Oklahoma State",
-   383
+   384
   ],
   [
    3,
    "Nebraska",
-   355
+   354
   ],
   [
    4,
    "Iowa",
-   349
+   352
   ],
   [
    5,
    "Virginia Tech",
-   344
+   345
   ],
   [
    6,
-   "Ohio State",
-   315
+   "Stanford",
+   304
   ],
   [
    7,
-   "Stanford",
-   314
+   "Minnesota",
+   290
   ],
   [
    8,
-   "Minnesota",
-   274
+   "Missouri",
+   287
   ],
   [
    9,
-   "Missouri",
-   271
+   "NC State",
+   264
   ],
   [
    10,
-   "Iowa State",
-   254
+   "Michigan",
+   256
   ],
   [
    11,
-   "Michigan",
-   235
+   "Iowa State",
+   246
   ],
   [
    12,
-   "Cornell",
-   226
+   "Ohio State",
+   240
   ],
   [
    13,
-   "Rutgers",
-   190
+   "Cornell",
+   209
   ],
   [
    14,
-   "Arizona State",
-   183
+   "Rutgers",
+   193
   ],
   [
    15,
-   "NC State",
-   167
+   "Arizona State",
+   180
   ],
   [
    16,
-   "Lehigh",
-   155
+   "Pittsburgh",
+   145
   ],
   [
    17,
-   "North Carolina",
-   147
+   "Northern Iowa",
+   132
   ],
   [
    18,
    "Oklahoma",
-   129
+   124
   ],
   [
    19,
    "Illinois",
-   123
+   121
   ],
   [
    20,
-   "Pittsburgh",
-   104
+   "Lehigh",
+   98
   ]
  ],
  "gophers": [
@@ -241,6 +241,6 @@
    "result": ""
   }
  ],
- "updatedAt": "2026-11-23T00:33:03.890Z",
+ "updatedAt": "2026-11-24T20:40:01.893Z",
  "errors": []
 }
