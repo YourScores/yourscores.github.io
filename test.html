@@ -1716,7 +1716,12 @@ document.addEventListener('click', ev => {
   }
   if (t.hasAttribute('data-pkshare')){ sharePicks(t); return; }
   if (t.hasAttribute('data-pkmn')){ savePicks('mn'); return; }
-  if (t.dataset.shield){ const k = t.dataset.shield; SH.on[k] = !SH.on[k]; if (!SH.on[k]) delete SH.on[k]; saveSH(); mobileRender(true); return; }
+  if (t.dataset.shield){
+    const k = t.dataset.shield; SH.on[k] = !SH.on[k]; if (!SH.on[k]) delete SH.on[k];
+    // turning Hide back on re-hides games of that team you had already shown
+    if (SH.on[k]){ const i = CFG.mnTeams.findIndex(x => tkey(x) === k), tm = CFG.mnTeams[i];
+      if (tm) [...(tm.events || []), ...(D['mn' + i] || [])].forEach(e => delete SH.rev[e.id]); }
+    saveSH(); mobileRender(true); return; }
   if (t.dataset.reveal){ SH.rev[t.dataset.reveal] = Date.now(); saveSH(); mobileRender(true); return; }
   if (t.dataset.tab && mPick && pkDirty && SELW.length){ mTab = t.dataset.tab; try { localStorage.setItem('gsTab', mTab); } catch(e){} savePicks(SELW); return; }
   if (t.dataset.tab){ mTab = t.dataset.tab; mDetail = null; mPick = false; try { localStorage.setItem('gsTab', mTab); } catch(e){} mobileRender(); window.scrollTo(0,0); return; }
