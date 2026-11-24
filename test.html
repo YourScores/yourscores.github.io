@@ -361,6 +361,7 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .tlb{font-size:1.35rem;font-weight:900;white-space:nowrap;font-variant-numeric:tabular-nums}
 .tlb .win{color:#3ddc84}.tlb .loss{color:#ff5b5b}
 .tls .win{color:#3ddc84}.tls .loss{color:#ff5b5b}
+.showbtn{background:none;border:1.5px solid var(--gold);color:var(--gold);border-radius:1rem;padding:.3rem .7rem;font-weight:800;font-size:.85rem;white-space:nowrap}
 /* install helper */
 .inst{position:relative;background:linear-gradient(135deg,color-mix(in srgb,var(--gold) 18%,var(--panel)),var(--panel));border:1px solid color-mix(in srgb,var(--gold) 45%,transparent);border-radius:.7rem;padding:.8rem .9rem;margin-bottom:.9rem;font-size:.9rem}
 .inst>b{display:block;font-size:1rem;margin-bottom:.35rem;padding-right:1.5rem}
@@ -1505,6 +1506,7 @@ function mnList(){
     return `<span class="${r === 'W' ? 'win' : r === 'L' ? 'loss' : ''}">${r}</span> ${esc(me.score)}-${esc(op.score)}`; };
   const lastTxt = (e, id) => { if (hid(e)) return 'Last: score hidden'; const { op, va } = sides(e, id); return `Last: ${res(e, id)} ${va} ${esc(op.abbr)}`; };
   const nextTxt = (e, id) => { const { op, va } = sides(e, id); return `Next: ${va} ${esc(op.abbr)} · ${dayShort(e.date)} ${tm(e.date)}`; };
+  const showBtn = e => `<button class="showbtn" data-reveal="${e.id}">Show score</button>`;
   const line = ({ cls = '', sty = '', attrs, logo, lg, name, rec, kind, big, x, sub }) =>
     `<div class="tl ${cls}"${sty} ${attrs}><div class="tlg">${logoImg(logo)}<small>${lg}</small></div>
       <div class="tlm"><div class="tln"><b>${esc(name)}</b>${rec ? `<span>${esc(rec)}</span>` : ''}</div><div class="tlx">${x}</div>${sub ? `<div class="tls">${sub}</div>` : ''}</div>
@@ -1519,7 +1521,7 @@ function mnList(){
     let e, kind, big = '', x = '', sub = '';
     if (s.live){
       e = full(s.live); const { me, op, va } = sides(e, t.id);
-      if (hid(e)){ kind = chip('HIDDEN'); big = '<span class="hidt">Hidden</span>'; x = `${va} ${esc(op.abbr)} · score hidden`; }
+      if (hid(e)){ kind = chip('HIDDEN'); big = showBtn(e); x = `${va} ${esc(op.abbr)} · ${esc(e.detail)}${e.tv ? ' · ' + esc(e.tv) : ''}`; }
       else { kind = chip('LIVE', 'lv'); big = `${esc(me.score)}–${esc(op.score)}`; x = `${va} ${esc(op.abbr)} · ${esc(e.detail)}${e.tv ? ' · ' + esc(e.tv) : ''}`; }
     } else if (s.next && previewTime(s.next.date)){
       e = full(s.next); const { op, va } = sides(e, t.id);
@@ -1527,18 +1529,20 @@ function mnList(){
       x = `${va} ${esc(op.abbr)} · ${tm(e.date)}${e.tv ? ' · ' + esc(e.tv) : ''}`; sub = s.last ? lastTxt(s.last, t.id) : '';
     } else if (recent){
       e = full(s.last); const { op, va } = sides(e, t.id);
-      kind = chip(hid(e) ? 'HIDDEN' : 'FINAL'); big = hid(e) ? '<span class="hidt">Hidden</span>' : res(e, t.id);
+      kind = chip(hid(e) ? 'HIDDEN' : 'FINAL'); big = hid(e) ? showBtn(e) : res(e, t.id);
       x = `${va} ${esc(op.abbr)} · ${ymd(new Date(e.date)) === today ? 'Today' : 'Yesterday'}`; sub = s.next ? nextTxt(s.next, t.id) : '';
     } else if (s.next){
       e = full(s.next); const { op, va } = sides(e, t.id);
       kind = chip('NEXT'); big = dayShort(e.date); x = `${va} ${esc(op.abbr)} · ${tm(e.date)}${e.tv ? ' · ' + esc(e.tv) : ''}`; sub = s.last ? lastTxt(s.last, t.id) : '';
     } else if (s.last){
       e = full(s.last); const { op, va } = sides(e, t.id);
-      kind = chip('LAST'); big = hid(e) ? '<span class="hidt">Hidden</span>' : res(e, t.id); x = `${va} ${esc(op.abbr)}`;
+      kind = chip('FINAL'); big = hid(e) ? showBtn(e) : res(e, t.id); x = `${va} ${esc(op.abbr)}`;
     }
     if (!e) return;
     const hot = !!s.live || (s.next && e === full(s.next) && ymd(new Date(e.date)) === today);
-    rows.push({ live: !!s.live, html: line({ cls: hot ? 'glow' : '', sty: hot ? ` style="--gl:${tglow(t)}"` : '', attrs: `data-gid="${e.id}" data-path="${t.path}"`,
+    // order: live, then today's upcoming games (soonest first), then finals (newest first), then later games (soonest first)
+    const tms = +new Date(e.date), grp = s.live ? 0 : e.state === 'post' ? 2 : ymd(new Date(e.date)) === today ? 1 : 3;
+    rows.push({ grp, k: grp === 2 ? -tms : tms, html: line({ cls: hot ? 'glow' : '', sty: hot ? ` style="--gl:${tglow(t)}"` : '', attrs: `data-gid="${e.id}" data-path="${t.path}"`,
       logo: t.logo, lg: LEAGUE[t.path] || '', name: t.label, rec: hiddenIds(t.path).has(t.id) ? '' : t.rec, kind, big, x, sub }) });
   });
   // Gophers wrestling
@@ -1553,17 +1557,19 @@ function mnList(){
       hot = wd(w.next) === today; kind = chip(hot ? 'GAME DAY' : 'PREVIEW', 'gd'); big = dayShort(wrestDate(w.next));
       x = [opp(w.next), wtime(w.next), esc(w.next.tv || '')].filter(Boolean).join(' · '); sub = lastLine;
     } else if (w.last?.result && [today, yest].includes(wd(w.last))){
-      kind = chip('RESULT'); big = esc(w.last.result); x = `${opp(w.last)} · ${wd(w.last) === today ? 'Today' : 'Yesterday'}`;
+      kind = chip('FINAL'); big = esc(w.last.result); x = `${opp(w.last)} · ${wd(w.last) === today ? 'Today' : 'Yesterday'}`;
       sub = w.next ? `Next: ${opp(w.next)} · ${dayShort(wrestDate(w.next))} ${wtime(w.next)}` : '';
     } else if (w.next){
       kind = chip('NEXT'); big = dayShort(wrestDate(w.next)); x = [opp(w.next), wtime(w.next), esc(w.next.tv || '')].filter(Boolean).join(' · '); sub = lastLine;
-    } else { kind = chip('LAST'); big = esc(w.last.result || ''); x = opp(w.last); }
+    } else { kind = chip('FINAL'); big = esc(w.last.result || ''); x = opp(w.last); }
     big = big.replace(/^([WL])\b/, (m, r) => `<span class="${r === 'W' ? 'win' : 'loss'}">${r}</span>`);
     const rk = wrestRank();
-    rows.push({ live: false, html: line({ cls: hot ? 'glow' : '', sty: hot ? ` style="--gl:${lighten('#ffcc33')}"` : '', attrs: 'data-tab="wr"',
+    const wFinal = /FINAL/.test(kind), wDate = +wrestDate(wFinal ? w.last : w.next);
+    const wgrp = wFinal ? 2 : wd(w.next) === today ? 1 : 3;
+    rows.push({ grp: wgrp, k: wgrp === 2 ? -wDate : wDate, html: line({ cls: hot ? 'glow' : '', sty: hot ? ` style="--gl:${lighten('#ffcc33')}"` : '', attrs: 'data-tab="wr"',
       logo: GOPHER_LOGO, lg: 'WRES', name: 'Gophers Wrestling', rec: rk ? '#' + rk : '', kind, big, x, sub }) });
   }
-  const list = [...rows.filter(r => r.live), ...rows.filter(r => !r.live)].map(r => r.html).join('');
+  const list = rows.sort((a, b) => a.grp - b.grp || a.k - b.k).map(r => r.html).join('');
   const strip = off.length ? `<div class="offrow">${off.map(t => `<div class="offc" style="border-color:${t.color}">${logoImg(t.logo)}<b>${esc(t.label)}</b><span>Offseason</span></div>`).join('')}</div>` : '';
   if (!rows.length) return `<div class="empty" style="padding:2rem 1rem">No teams picked yet<br><button class="revbtn" data-pick>Pick your teams</button></div>`;
   return `<div class="subrow"><div class="sub">Tap a game for details</div><button class="editbtn" data-pick>Edit teams</button></div><div class="wl">${list}</div>${strip}`;
