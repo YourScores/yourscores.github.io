@@ -738,7 +738,7 @@ async function fetchSummary(e, path){
         story: s.article?.headline || '',
         lines: Object.fromEntries(hc.map(c => [c.team?.abbreviation, (c.linescores || []).map(l => l.displayValue)])),
         rec: Object.fromEntries(hc.map(c => [c.team?.abbreviation, (c.record || [])[0]?.summary || ''])),
-        hdr: { state: s.header?.competitions?.[0]?.status?.type?.state || '', teams: hc.map(c => ({ abbr: c.team?.abbreviation, score: c.score })) }
+        hdr: { state: s.header?.competitions?.[0]?.status?.type?.state || '', teams: [...hc].sort((a, b) => (a.homeAway === 'home') - (b.homeAway === 'home')).map(c => ({ abbr: c.team?.abbreviation, score: c.score })) }
       };
       D.sumAt[e.id] = Date.now();
     } catch(err){}
@@ -1431,6 +1431,8 @@ const nameQ = n => 'user_name=eq.' + encodeURIComponent(n);
 function pushBet(id){
   if (!PNAME) return;
   const b = BETS[id];
+  // keep the loaded board in step so counts and the Picks tab reflect this change right away
+  if (Array.isArray(BOARD)){ BOARD = BOARD.filter(r => !(r.user_name === PNAME && r.game_id === id)); if (b) BOARD.unshift({ user_name: PNAME, game_id: id, game_date: b.t, picks: b.p, lines: b.lines }); }
   if (!b) return sb('DELETE', `?${nameQ(PNAME)}&game_id=eq.${id}`).catch(() => {});
   return sb('POST', '', { user_name: PNAME, game_id: id, game_date: b.t, picks: b.p, lines: b.lines, updated_at: new Date().toISOString() }).catch(() => {});
 }
