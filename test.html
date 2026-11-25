@@ -56,6 +56,7 @@ img{display:block}
 .bx td{font-size:1rem;padding:.24rem .3rem;text-align:right;border-bottom:1px solid var(--line)}
 .bx td.bn{text-align:left;font-weight:700;white-space:nowrap}
 .bx td.pts{color:var(--gold);font-weight:800}
+.bx th.srt{cursor:pointer;text-decoration:underline dotted var(--line);text-underline-offset:3px}.bx th.on{color:var(--gold)}
 .bx tr.sep td{border-bottom:2px solid var(--dim)}
 .bx tr.tot td{font-weight:800;border-top:2px solid var(--dim);border-bottom:0}
 .dnp{color:var(--dim);font-size:.85rem;margin-top:.5rem}
@@ -254,6 +255,9 @@ tr.cut td{border-bottom:2px dashed var(--line)}
   #clock{font-size:1.15rem}
   #tabs{display:flex;width:100%;gap:.3rem;overflow-x:auto;scrollbar-width:none;scroll-behavior:smooth}
   #tabs::-webkit-scrollbar{display:none}
+  #tabs.fr{-webkit-mask-image:linear-gradient(90deg,#000 82%,transparent);mask-image:linear-gradient(90deg,#000 82%,transparent)}
+  #tabs.fl{-webkit-mask-image:linear-gradient(90deg,transparent,#000 18%);mask-image:linear-gradient(90deg,transparent,#000 18%)}
+  #tabs.fl.fr{-webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
   #tabs button{flex:1 0 auto;background:var(--panel);color:var(--dim);border:0;border-radius:.45rem;padding:.55rem .6rem;font:inherit;font-weight:800;font-size:.82rem;letter-spacing:.04em;position:relative}
   #tabs button.on{background:var(--gold);color:#000}
   .ld8{position:absolute;top:.3rem;right:.3rem;width:.45rem;height:.45rem;border-radius:50%;background:var(--live)}
@@ -326,6 +330,8 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .shbar .shb button{display:flex;align-items:center;gap:.25rem;padding:.25rem .45rem;border-radius:1rem;opacity:.55}
 .shbar .shb button img{width:1.35rem;height:1.35rem;object-fit:contain}
 .shbar .shb button.on{opacity:1;border:2px solid var(--gl);box-shadow:0 0 .5rem color-mix(in srgb,var(--gl) 70%,transparent);color:#fff;font-size:.7rem}
+.shbar .shb .shlg{font-size:.62rem;font-weight:800;color:var(--dim);letter-spacing:.03em}
+.shbar .shb button.on .shlg{color:#fff}
 .subrow{display:flex;align-items:center;justify-content:space-between}
 .editbtn{background:none;border:1px solid var(--line);color:var(--dim);border-radius:1rem;padding:.25rem .7rem;font-size:.78rem;font-weight:700}
 .pk{display:flex;flex-direction:column;gap:.7rem;min-width:0;max-width:100%}
@@ -503,7 +509,7 @@ function readPicks(){
       localStorage.setItem('ysTeams', v === 'mn' ? 'mn' : JSON.stringify(v.split(',').map(x => { const [c, id] = x.split(':'); return { c, id }; }).filter(x => lgOf((LEAGUES.find(l => l.code === x.c) || {}).path) && x.id)));
     } else if (q.get('wres') === '1' && localStorage.getItem('ysTeams') === null) localStorage.setItem('ysTeams', 'mn');
     if (q.get('pn') && localStorage.getItem('ysName') === null) localStorage.setItem('ysName', q.get('pn').slice(0, 20));
-    if (q.has('teams') || q.has('wres')) history.replaceState(null, '', location.pathname);
+    if (q.has('teams') || q.has('wres')) history.replaceState(history.state, '', location.pathname + location.hash);
     // someone who used the app before the picker existed keeps the Minnesota lineup and wrestling
     if (localStorage.getItem('ysTeams') === null && localStorage.getItem('gsTab') !== null){ localStorage.setItem('ysTeams', 'mn'); localStorage.setItem('ysWres', '1'); }
     const raw = localStorage.getItem('ysTeams');
@@ -918,8 +924,11 @@ function hiddenBox(e, what){
 function shieldBar(){
   const ts = CFG.mnTeams.filter((t,i) => t.events && !teamState(t,i).off);
   if (!ts.length) return '';
+  // same school in two sports (Iowa football and basketball) shares a logo: tag those with the league
+  const n = {}; CFG.mnTeams.forEach(t => { const k = t.logo || t.label; n[k] = (n[k] || 0) + 1; });
   return `<div class="shbar"><span>Hide scores</span><div class="shb">${ts.map(t => { const on = SH.on[tkey(t)];
-    return `<button data-shield="${esc(tkey(t))}" class="${on ? 'on' : ''}" style="--gl:${tglow(t)}" title="${esc(t.label)}">${logoImg(t.logo)}${on ? '<b>ON</b>' : ''}</button>`; }).join('')}</div></div>`;
+    const tag = n[t.logo || t.label] > 1 ? `<small class="shlg">${esc((lgOf(t.path)?.code || '').toUpperCase())}</small>` : '';
+    return `<button data-shield="${esc(tkey(t))}" class="${on ? 'on' : ''}" style="--gl:${tglow(t)}" title="${esc(t.label)}">${logoImg(t.logo)}${tag}${on ? '<b>ON</b>' : ''}</button>`; }).join('')}</div></div>`;
 }
 
 /* ---------------- panels ---------------- */
@@ -1247,15 +1256,19 @@ function performersBox(sum, e){
       ${rows.map(r => `<div class="pf tnum"><span class="lw">${esc(r.who)}</span>${cols.map(([,i]) => `<span>${esc(r.st[i])}</span>`).join('')}</div>`).join('')}</div>`;
   }).join('');
 }
+const BXSORT = {};   // team abbr -> sorted column, phone only, reset when a game opens
 function boxScoreBox(sum, t){
   const T = (sum?.players || []).find(x => x.abbr === t.abbr);
   if (!T || !T.rows.length) return '<div class="dim">Box score not available</div>';
   const cols = T.labels.map((l,i) => [l,i]).filter(([l]) => l !== 'DREB');
   const starters = T.rows.filter(r => r.starter), bench = T.rows.filter(r => !r.starter);
+  const sk = BXSORT[t.abbr], si = sk ? T.labels.indexOf(sk) : -1;
+  const num = v => { const x = parseFloat(String(v ?? '').replace(/^\+/, '')); return isNaN(x) ? -999 : x; };
+  const sorted = si >= 0 ? [...T.rows].sort((a, b) => num(b.st[si]) - num(a.st[si])) : null;
   const row = (r, cls) => `<tr class="${cls || ''}"><td class="bn">${esc(r.who)}</td>${cols.map(([l,i]) => `<td class="${l === 'PTS' ? 'pts' : ''}">${esc(r.st[i] ?? '')}</td>`).join('')}</tr>`;
   return `<div class="ldHdr" style="border-color:${t.color}">${logoImg(t.logo)}${esc(t.abbr)}</div>
-    <div class="bxwrap"><table class="bx tnum"><tr><th></th>${cols.map(([l]) => `<th>${esc(l)}</th>`).join('')}</tr>
-    ${starters.map((r,i) => row(r, i === starters.length - 1 && bench.length ? 'sep' : '')).join('')}${bench.map(r => row(r)).join('')}
+    <div class="bxwrap"><table class="bx tnum"><tr><th></th>${cols.map(([l]) => `<th class="${PHONE ? 'srt' : ''} ${l === sk ? 'on' : ''}" ${PHONE ? `data-bxs="${esc(t.abbr)}|${esc(l)}"` : ''}>${esc(l)}${l === sk ? '▾' : ''}</th>`).join('')}</tr>
+    ${sorted ? sorted.map(r => row(r)).join('') : starters.map((r,i) => row(r, i === starters.length - 1 && bench.length ? 'sep' : '')).join('') + bench.map(r => row(r)).join('')}
     ${T.totals.length ? `<tr class="tot"><td class="bn">Team</td>${cols.map(([l,i]) => `<td>${esc(T.totals[i] ?? '')}</td>`).join('')}</tr>` : ''}</table></div>
     ${T.dnp.length ? `<div class="dnp">Did not play: ${T.dnp.map(d => `${esc(d.who)} <span>(${esc(d.why.replace(/^DNP-?\s*/i,'').toLowerCase() || 'dnp')})</span>`).join(', ')}</div>` : ''}`;
 }
@@ -2006,7 +2019,7 @@ function picksQuery(v){
   const t = v === 'mn' ? 'mn' : Array.isArray(v) && v.length ? v.map(p => p.c + ':' + p.id).join(',') : '';
   return t ? `?teams=${t}${WRES ? '&wres=1' : ''}${PNAME ? '&pn=' + encodeURIComponent(PNAME) : ''}` : '';
 }
-function syncUrl(v){ const q = picksQuery(v); if (q && location.search !== q) history.replaceState(null, '', location.pathname + q); }
+function syncUrl(v){ const q = picksQuery(v); if (q && location.search !== q) history.replaceState(history.state, '', location.pathname + q + location.hash); }
 let pkDirty = false;
 function persistSel(){ pkDirty = true; if (SELW.length){ try { localStorage.setItem('ysTeams', JSON.stringify(SELW)); } catch(e){} syncUrl(SELW); } }
 async function sharePicks(btn){
@@ -2079,14 +2092,32 @@ function mobileRender(keepScroll, force){
   if (!tl.some(([k]) => k === mTab)) mTab = 'mn';
   $('#tabs').innerHTML = tl.map(([k,l]) => `<button data-tab="${k}" class="${k === mTab && !mDetail ? 'on' : ''}">${l}${liveDot[k] ? '<i class="ld8"></i>' : ''}</button>`).join('');
   const onTab = $('#tabs button.on'); if (onTab){ const tb = $('#tabs'); tb.scrollLeft = onTab.offsetLeft - (tb.clientWidth - onTab.offsetWidth) / 2; }
+  tabFade();
   if (mPick){ $('#stage').innerHTML = `<div class="panel show mp">${pickerHTML()}</div>`; pickerList(); return; }
   $('#stage').innerHTML = `<div class="panel show mp">${mobileContent()}</div>`;
   if (keepScroll) window.scrollTo(0, y);
 }
+// fade the tab row's edge when there are more tabs to scroll to
+function tabFade(){ const tb = $('#tabs'); if (!tb) return; const max = tb.scrollWidth - tb.clientWidth;
+  tb.classList.toggle('fr', max > 4 && tb.scrollLeft < max - 4); tb.classList.toggle('fl', max > 4 && tb.scrollLeft > 4); }
+if (PHONE){ $('#tabs')?.addEventListener('scroll', tabFade, { passive: true }); window.addEventListener('resize', tabFade); }
+const gameHash = (id, path) => `#g=${id}~${path}`;
+const BOOT_HASH = location.hash;
+function restoreGame(){
+  const m = BOOT_HASH.match(/^#g=(\d+)~([a-z0-9.\-]+\/[a-z0-9.\-]+)$/i); if (!m) return;
+  const [, id, path] = m, e = findEvent(id);
+  if (!e){ history.replaceState(null, '', location.pathname + location.search); return; }
+  // after a reload the game's history entry is still there; a fresh open needs one so Back works
+  if (history.state?.game !== id){ history.replaceState(null, '', location.pathname + location.search); history.pushState({ game: id }, '', location.pathname + location.search + gameHash(id, path)); }
+  mDetail = { id, path, e }; mobileRender(); window.scrollTo(0, 0);
+  fetchSummary(e, path).then(() => { if (mDetail && mDetail.id === id) mobileRender(true); });
+  if (isPickGame(e, path) && hasWolves()) loadBoard().then(() => { if (mDetail && mDetail.id === id) mobileRender(true); });
+}
 async function openGame(id, path){
   const e = findEvent(id);
   mDetail = { id, path, e };
-  history.pushState({ game: id }, '');
+  Object.keys(BXSORT).forEach(k => delete BXSORT[k]);
+  history.pushState({ game: id }, '', location.pathname + location.search + gameHash(id, path));
   mobileRender(); window.scrollTo(0, 0);
   if (e && isPickGame(e, path) && hasWolves()) loadBoard().then(() => { if (mDetail && mDetail.id === id) mobileRender(true); });
   if (e && (!D.sum[id] || e.state === 'in')) { await fetchSummary(e, path); if (mDetail && mDetail.id === id) mobileRender(true); }
@@ -2095,7 +2126,7 @@ function closeGame(){ mDetail = null; mobileRender(); }
 window.addEventListener('popstate', () => { if (mDetail) closeGame(); });
 document.addEventListener('click', ev => {
   if (!PHONE) return;
-  const t = ev.target.closest('[data-join],[data-joinno],[data-bet],[data-install],[data-installx],[data-pick],[data-pkdone],[data-pklg],[data-pkt],[data-pkrm],[data-pkshare],[data-pkmn],[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
+  const t = ev.target.closest('[data-bxs],[data-join],[data-joinno],[data-bet],[data-install],[data-installx],[data-pick],[data-pkdone],[data-pklg],[data-pkt],[data-pkrm],[data-pkshare],[data-pkmn],[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
   if (!t) return;
   if (t.dataset.bet){
     const [id, k, v] = t.dataset.bet.split('|'); const e = findEvent(id); if (!e || e.state !== 'pre') return;
@@ -2105,6 +2136,7 @@ document.addEventListener('click', ev => {
     if (!Object.keys(b.p).length) delete BETS[id];
     saveBets(); pushBet(id); mobileRender(true); return;
   }
+  if (t.dataset.bxs){ const [a, l] = t.dataset.bxs.split('|'); if (BXSORT[a] === l) delete BXSORT[a]; else BXSORT[a] = l; mobileRender(true); return; }
   if (t.hasAttribute('data-join')){ const inp = $('#pkname'); const v = inp?.value || ''; JOIN.val = v; inp?.blur(); joinBoard(v); return; }
   if (t.hasAttribute('data-joinno')){ try { localStorage.setItem('ysNameNo', '1'); } catch(e){} mobileRender(true); return; }
   if (t.hasAttribute('data-pick')){ startPicker(); return; }
@@ -2129,7 +2161,8 @@ document.addEventListener('click', ev => {
     saveSH(); mobileRender(true); return; }
   if (t.dataset.reveal){ SH.rev[t.dataset.reveal] = Date.now(); saveSH(); mobileRender(true); return; }
   if (t.dataset.tab && mPick && pkDirty && SELW.length){ mTab = t.dataset.tab; try { localStorage.setItem('gsTab', mTab); } catch(e){} savePicks(SELW); return; }
-  if (t.dataset.tab){ if (t.dataset.tab === 'pk') BOARDAT = 0, loadBoard().then(() => { if (mTab === 'pk' && !mDetail) mobileRender(true); }); mTab = t.dataset.tab; mDetail = null; mPick = false; try { localStorage.setItem('gsTab', mTab); } catch(e){} mobileRender(); window.scrollTo(0,0); return; }
+  if (t.dataset.tab){ if (mDetail && location.hash) history.replaceState(null, '', location.pathname + location.search);
+    if (t.dataset.tab === 'pk') BOARDAT = 0, loadBoard().then(() => { if (mTab === 'pk' && !mDetail) mobileRender(true); }); mTab = t.dataset.tab; mDetail = null; mPick = false; try { localStorage.setItem('gsTab', mTab); } catch(e){} mobileRender(); window.scrollTo(0,0); return; }
   if (t.hasAttribute('data-back')){ history.back(); return; }
   if (t.dataset.gid){ openGame(t.dataset.gid, t.dataset.path); return; }
   if (t.dataset.mn){
@@ -2160,7 +2193,7 @@ async function boot(){
   loadWeather(); setInterval(loadWeather, 30*60e3);
   await Promise.all([loadMN(), loadStandings(), loadNews(), loadWrestling()]);
   await loadBoards();
-  if (PHONE) mobileRender(); else { render(); schedule(); updateTicker(true); }
+  if (PHONE){ mobileRender(); restoreGame(); } else { render(); schedule(); updateTicker(true); }
   setInterval(async () => { await loadNews(); updateTicker(); if (PHONE) refreshView(); }, 15*60e3);                     // headlines
   setInterval(async () => { await loadBoards(); refreshView(); updateTicker(); }, 60e3);       // live scores every minute
   setInterval(async () => { await loadMN(); refreshView(); }, 15*60e3);                         // team schedules
