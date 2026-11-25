@@ -1466,7 +1466,7 @@ async function buildQs(e){
   if (tk){ const avg = pre('MIN', tk); qs.push({ k: 'q3', t: 'tstat', team: 'MIN', stat: tk, avg, line: TST[tk].pct ? Math.round(avg) - .5 : half(avg) }); }
   // 4) head-to-head: two starters with similar numbers, or the two teams in a stat they're close in
   const pairs = [];
-  mp.filter(p => p.min >= 24).forEach(a => opp.filter(p => p.min >= 24).forEach(b => Object.keys(PST).forEach(k => {
+  mp.filter(p => p.min >= 24).forEach(a => opp.filter(p => p.min >= 24).forEach(b => ['PTS', 'PTS', 'REB', 'AST'].forEach(k => {   // 3s made ties too often head to head
     if (q2 && q2.p === a && q2.k === k) return;
     if (a[k] >= PST[k].min && b[k] >= PST[k].min && Math.max(a[k], b[k]) / Math.min(a[k], b[k]) <= 1.25) pairs.push({ a, b, k });
   })));

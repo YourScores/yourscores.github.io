@@ -1369,6 +1369,7 @@ function pickLines(e, sum){
 }
 function gradePicks(e, sum, b){
   if (e.state !== 'post' || !b?.p) return null;
+  if (b.lines?.qs) return gradeQs(e, sum, b);
   const sc = Object.fromEntries(e.teams.map(t => [t.abbr, +t.score]));
   const r = {}, L = b.lines;
   if (b.p.spread && L.fav && L.spread != null){
@@ -1396,6 +1397,7 @@ function picksRecord(){
 }
 function picksBox(e, sum, path){
   if (!isPickGame(e, path) || hid(e, path)) return '';
+  if (isNewQ(e)) return picksBoxQ(e, sum);
   const b = BETS[e.id] || null;
   const L = b?.lines || pickLines(e, sum);
   if (!L.fav && L.ou == null && !L.props.length) return `<div class="box picks"><h3>YOUR PICKS</h3><div class="dim">Lines aren't posted yet. Check back closer to tipoff.</div></div>`;
@@ -1413,6 +1415,165 @@ function picksBox(e, sum, path){
   const made = Object.keys(p).length, total = rows.length;
   const rec = picksRecord();
   const head = pre ? (made ? `${made} of ${total} picked · locks at tipoff` : 'Make your picks · locks at tipoff') : e.state === 'in' ? 'Locked · graded after the final' : r ? `This game: ${Object.entries(r).filter(([k, v]) => !k.endsWith('Txt') && v === 'W').length} of ${made}` : 'No picks made for this game';
+  return `<div class="box picks"><h3>YOUR PICKS</h3><div class="pkhead">${head}${rec.w + rec.l ? `<span>Record ${rec.w}–${rec.l}</span>` : ''}</div>${rows.join('')}${joinPrompt(true)}</div>` + (pre ? boardCount(e.id) : allPicksBox(e.id));
+}
+
+/* ---------------- Rotating questions (games after Nov 26, 2026) ----------------
+   Four per game, the same for everyone: the first phone to open the game builds them from
+   ESPN season averages and saves them to the shared games table; everyone after reads that set.
+   1) Wolves against the spread, always. 2) a Wolves player stat. 3) a Wolves team stat.
+   4) a head-to-head, player vs player or team vs team. Lines sit half a point under the
+   season average so each one is close to a coin flip. Choices are seeded by the game id. */
+const SBG = 'https://vkwqmnwdzqfmgeelomek.supabase.co/rest/v1/games';
+const NEWQ_FROM = Date.parse('2026-11-27T00:00Z');
+const isNewQ = e => new Date(e.date) >= NEWQ_FROM;
+const QS = {}, QTRY = {};
+function seeded(seed){ let a = seed >>> 0; return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const PST = { PTS: { lab: 'points', sh: 'pts', min: 10 }, REB: { lab: 'rebounds', sh: 'reb', min: 5 }, AST: { lab: 'assists', sh: 'ast', min: 3.5 }, '3PM': { lab: '3s made', sh: '3s', min: 1.8 } };
+const TST = { '3P%': { pre: 'Three Point %', post: '3PT', lab: '3-point %', pct: 1 }, REB: { pre: 'Rebounds Per Game', post: 'Rebounds', lab: 'rebounds' },
+  AST: { pre: 'Assists Per Game', post: 'Assists', lab: 'assists' }, TO: { pre: 'Total Turnovers Per Game', post: 'Total Turnovers', lab: 'turnovers' },
+  STL: { pre: 'Steals Per Game', post: 'Steals', lab: 'steals' }, BLK: { pre: 'Blocks Per Game', post: 'Blocks', lab: 'blocks' } };
+const lastName = n => (n || '').split(' ').slice(-1)[0];
+const r1 = v => Math.round(v * 10) / 10;
+async function rosterAvgs(teamId){
+  const r = await getJSON(`${API}basketball/nba/teams/${teamId}/roster`);
+  const ath = (r.athletes || []).filter(a => !(a.injuries || []).some(i => /out/i.test(i.status || '')));
+  const out = await Promise.all(ath.map(async a => { try {
+    const s = await getJSON(`https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${a.id}/stats`);
+    const c = (s.categories || []).find(x => x.name === 'averages'), L = c?.labels || [];
+    const row = (c?.statistics || []).slice(-1)[0]; if (!row) return null;
+    const v = k => row.stats[L.indexOf(k)];
+    return { who: a.shortName, gp: +v('GP'), min: +v('MIN'), PTS: +v('PTS'), REB: +v('REB'), AST: +v('AST'), '3PM': parseFloat(String(v('3PT')).split('-')[0]) };
+  } catch(e){ return null; } }));
+  return out.filter(p => p && p.gp >= 4 && p.min >= 20);
+}
+async function buildQs(e){
+  const sum = D.sum[e.id];
+  const m = (sum?.odds?.line || '').match(/^([A-Z]{2,4})\s+(-?\d+(?:\.\d+)?)$/);
+  if (!m) return null;                                   // wait for the spread
+  const mn = e.teams.find(t => t.abbr === 'MIN'), op = e.teams.find(t => t.abbr !== 'MIN');
+  const R = seeded(+e.id), pick = a => a[Math.floor(R() * a.length)];
+  const qs = [{ k: 'q1', t: 'spread', fav: m[1], dog: e.teams.find(t => t.abbr !== m[1]).abbr, spread: Math.abs(+m[2]) }];
+  const [mp, opp] = await Promise.all([rosterAvgs(mn.id), rosterAvgs(op.id)]);
+  // 2) a Wolves rotation player and a stat he's known for (points twice as likely)
+  const c2 = [];
+  mp.filter(p => p.min >= 24).forEach(p => Object.keys(PST).forEach(k => { if (p[k] >= PST[k].min) c2.push({ p, k }); if (k === 'PTS' && p.PTS >= 10) c2.push({ p, k }); }));
+  const q2 = c2.length ? pick(c2) : null;
+  if (q2) qs.push({ k: 'q2', t: 'pstat', team: 'MIN', who: q2.p.who, stat: q2.k, avg: r1(q2.p[q2.k]), line: half(q2.p[q2.k]) });
+  // 3) a Wolves team stat
+  const st = Object.fromEntries((sum.stats || []).map(x => [x.abbr, x.s])), pre = (a, k) => parseFloat(st[a]?.[TST[k].pre]);
+  const tk = pick(Object.keys(TST).filter(k => !isNaN(pre('MIN', k))));
+  if (tk){ const avg = pre('MIN', tk); qs.push({ k: 'q3', t: 'tstat', team: 'MIN', stat: tk, avg, line: TST[tk].pct ? Math.round(avg) - .5 : half(avg) }); }
+  // 4) head-to-head: two starters with similar numbers, or the two teams in a stat they're close in
+  const pairs = [];
+  mp.filter(p => p.min >= 24).forEach(a => opp.filter(p => p.min >= 24).forEach(b => ['PTS', 'PTS', 'REB', 'AST'].forEach(k => {   // 3s made ties too often head to head
+    if (q2 && q2.p === a && q2.k === k) return;
+    if (a[k] >= PST[k].min && b[k] >= PST[k].min && Math.max(a[k], b[k]) / Math.min(a[k], b[k]) <= 1.25) pairs.push({ a, b, k });
+  })));
+  const tpairs = Object.keys(TST).filter(k => k !== tk && !isNaN(pre('MIN', k)) && !isNaN(pre(op.abbr, k)) && Math.max(pre('MIN', k), pre(op.abbr, k)) / Math.min(pre('MIN', k), pre(op.abbr, k)) <= 1.15);
+  if (pairs.length && (!tpairs.length || R() < .6)){ const x = pick(pairs);
+    qs.push({ k: 'q4', t: 'h2h', stat: x.k, a: { team: 'MIN', who: x.a.who, avg: r1(x.a[x.k]) }, b: { team: op.abbr, who: x.b.who, avg: r1(x.b[x.k]) } }); }
+  else if (tpairs.length){ const k = pick(tpairs);
+    qs.push({ k: 'q4', t: 'h2h', stat: k, a: { team: 'MIN', avg: pre('MIN', k) }, b: { team: op.abbr, avg: pre(op.abbr, k) } }); }
+  return qs;
+}
+const qsRead = id => fetch(`${SBG}?select=qs&game_id=eq.${id}`, { headers: { apikey: SBK } }).then(r => r.json());
+function getQs(e){
+  if (Array.isArray(QS[e.id])) return Promise.resolve(QS[e.id]);
+  if (QS[e.id] instanceof Promise) return QS[e.id];
+  if (QTRY[e.id] && Date.now() - QTRY[e.id] < 5 * 60e3) return Promise.resolve(null);
+  QTRY[e.id] = Date.now();
+  return QS[e.id] = (async () => {
+    try {
+      let rows = await qsRead(e.id);
+      if (rows[0]) return QS[e.id] = rows[0].qs;
+      if (e.state !== 'pre'){ delete QS[e.id]; return null; }
+      if (!D.sum[e.id]) await fetchSummary(e, 'basketball/nba');
+      const qs = await buildQs(e);
+      if (!qs){ delete QS[e.id]; return null; }
+      const r = await fetch(SBG, { method: 'POST', headers: { apikey: SBK, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ game_id: e.id, game_date: e.date, qs }) });
+      if (!r.ok){ rows = await qsRead(e.id); if (rows[0]) return QS[e.id] = rows[0].qs; delete QS[e.id]; return null; }   // someone else saved first
+      return QS[e.id] = qs;
+    } catch(err){ delete QS[e.id]; return null; }
+  })();
+}
+const fmtV = (v, stat) => TST[stat]?.pct && stat === '3P%' ? v + '%' : v;
+function qName(q){
+  if (q.t === 'spread') return 'Spread';
+  if (q.t === 'pstat') return `${esc(lastName(q.who))} ${PST[q.stat].lab}`;
+  if (q.t === 'tstat') return `Wolves ${TST[q.stat].lab}`;
+  return `More ${(PST[q.stat] || TST[q.stat]).lab}`;
+}
+function qShort(q){
+  if (q.t === 'spread') return 'ATS';
+  if (q.t === 'pstat') return `${lastName(q.who)} ${PST[q.stat].sh}`;
+  if (q.t === 'tstat') return `MIN ${q.stat}`;
+  return `More ${q.stat}`;
+}
+function qNote(q){
+  if (q.t === 'pstat') return `averages ${q.avg}`;
+  if (q.t === 'tstat') return `season ${fmtV(q.avg, q.stat)}`;
+  if (q.t === 'h2h') return `${fmtV(q.a.avg, q.stat)} vs ${fmtV(q.b.avg, q.stat)} a game`;
+  return '';
+}
+function qOpts(q){
+  if (q.t === 'spread') return [['fav', `${q.fav} -${q.spread}`], ['dog', `${q.dog} +${q.spread}`]];
+  if (q.t === 'h2h') return [['a', q.a.who ? lastName(q.a.who) : q.a.team], ['b', q.b.who ? lastName(q.b.who) : q.b.team]];
+  const u = q.stat === '3P%' ? '%' : '';
+  return [['o', `Over ${q.line}${u}`], ['u', `Under ${q.line}${u}`]];
+}
+function pVal(sum, team, who, stat){
+  const tm = (sum?.players || []).find(x => x.abbr === team); if (!tm) return null;
+  const row = tm.rows.find(r => r.who === who); if (!row) return undefined;      // didn't play
+  const L = tm.labels;
+  return stat === '3PM' ? parseInt(row.st[L.indexOf('3PT')]) : +row.st[L.indexOf(stat)];
+}
+function tVal(sum, team, stat){
+  const s = (sum?.stats || []).find(x => x.abbr === team)?.s; if (!s) return null;
+  if (stat === '3P%'){ const [m, a] = String(s['3PT'] || '').split('-').map(Number); return a ? r1(100 * m / a) : null; }
+  const v = parseFloat(s[TST[stat].post]); return isNaN(v) ? null : v;
+}
+function gradeQs(e, sum, b){
+  const sc = Object.fromEntries(e.teams.map(t => [t.abbr, +t.score])), r = {};
+  b.lines.qs.forEach(q => {
+    const k = q.k, my = b.p[k]; if (!my) return;
+    if (q.t === 'spread'){
+      const margin = sc[q.fav] - sc[q.dog], fc = margin > q.spread;
+      r[k] = margin === q.spread ? 'P' : ((my === 'fav') === fc ? 'W' : 'L'); r[k + 'Txt'] = `${q.fav} ${margin >= 0 ? 'won' : 'lost'} by ${Math.abs(margin)}`;
+    } else if (q.t === 'pstat' || q.t === 'tstat'){
+      const v = q.t === 'pstat' ? pVal(sum, q.team, q.who, q.stat) : tVal(sum, q.team, q.stat);
+      if (v === null) return;
+      if (v === undefined){ r[k] = 'P'; r[k + 'Txt'] = "Didn't play"; return; }
+      r[k] = v === q.line ? 'P' : ((my === 'o') === (v > q.line) ? 'W' : 'L'); r[k + 'Txt'] = q.t === 'pstat' ? `${v} ${PST[q.stat].sh}` : `${fmtV(v, q.stat)}`;
+    } else {
+      const val = s => s.who ? pVal(sum, s.team, s.who, q.stat) : tVal(sum, s.team, q.stat);
+      const a = val(q.a), bb = val(q.b);
+      if (a === null || bb === null) return;
+      if (a === undefined || bb === undefined){ r[k] = 'P'; r[k + 'Txt'] = "Didn't play"; return; }
+      r[k] = a === bb ? 'P' : ((my === 'a') === (a > bb) ? 'W' : 'L'); r[k + 'Txt'] = `${fmtV(a, q.stat)} to ${fmtV(bb, q.stat)}`;
+    }
+  });
+  return r;
+}
+function picksBoxQ(e, sum){
+  const b = BETS[e.id] || null;
+  const qs = b?.lines?.qs || (Array.isArray(QS[e.id]) ? QS[e.id] : null);
+  if (!qs){
+    if (!(QS[e.id] instanceof Promise)) getQs(e).then(q => { if (q && mDetail && mDetail.id === e.id) mobileRender(true); });
+    const msg = e.state !== 'pre' ? 'No picks for this game.' : QS[e.id] instanceof Promise ? "Loading tonight's questions…" : "This game's questions post once the spread is out, usually the day before.";
+    return `<div class="box picks"><h3>YOUR PICKS</h3><div class="dim">${msg}</div>${joinPrompt(true)}</div>`;
+  }
+  const pre = e.state === 'pre', p = b?.p || {};
+  let r = null;
+  if (e.state === 'post' && b?.p){ r = gradePicks(e, sum, b); if (r && Object.keys(r).length){ b.r = r; saveBets(); } }
+  const mark = k => r?.[k] ? `<span class="pkres ${r[k]}">${r[k] === 'W' ? '✓' : r[k] === 'L' ? '✗' : 'Push'}</span>` : '';
+  const rows = qs.map(q => {
+    const [a, bb] = qOpts(q).map(([v, label]) => `<button class="pkb ${p[q.k] === v ? 'on' : ''}" ${pre ? `data-bet="${e.id}|${q.k}|${v}"` : 'disabled'}>${esc(label)}</button>`);
+    const note = r?.[q.k + 'Txt'] || qNote(q);
+    return `<div class="pkrow"><div class="pkn">${qName(q)}${note ? `<small>${esc(note)}</small>` : ''}</div><div class="pkbs">${a}${bb}</div>${mark(q.k)}</div>`;
+  });
+  const made = Object.keys(p).length, rec = picksRecord();
+  const head = pre ? (made ? `${made} of ${qs.length} picked · locks at tipoff` : 'Make your picks · locks at tipoff') : e.state === 'in' ? 'Locked · graded after the final' : r ? `This game: ${Object.entries(r).filter(([k, v]) => !k.endsWith('Txt') && v === 'W').length} of ${made}` : 'No picks made for this game';
   return `<div class="box picks"><h3>YOUR PICKS</h3><div class="pkhead">${head}${rec.w + rec.l ? `<span>Record ${rec.w}–${rec.l}</span>` : ''}</div>${rows.join('')}${joinPrompt(true)}</div>` + (pre ? boardCount(e.id) : allPicksBox(e.id));
 }
 
@@ -1507,6 +1668,7 @@ function standings(){
   return Object.values(by).sort((a, b) => b.w - a.w || (b.w / (b.w + b.l || 1)) - (a.w / (a.w + a.l || 1)) || a.l - b.l || a.name.localeCompare(b.name));
 }
 function pickLabel(k, v, L, teams){
+  if (L.qs){ const q = L.qs.find(x => x.k === k); return q ? `${qShort(q)}: ${(qOpts(q).find(o => o[0] === v) || [, ''])[1]}` : ''; }
   if (k === 'spread'){ const dog = (teams || []).find(t => t.abbr !== L.fav)?.abbr || 'Dog'; return v === 'fav' ? `${L.fav} -${L.spread}` : `${dog} +${L.spread}`; }
   if (k === 'total') return `${v === 'o' ? 'Over' : 'Under'} ${L.ou}`;
   const pr = (L.props || [])[+k.slice(1)]; if (!pr) return '';
@@ -1517,7 +1679,7 @@ function allPicksBox(id){
   const rows = BOARD.filter(r => r.game_id === id && Object.keys(r.picks || {}).length);
   if (!rows.length) return '';
   const teams = FINALS[id]?.e.teams || findEvent(id)?.teams;
-  const order = ['spread', 'total', 'p0', 'p1', 'p2'];
+  const order = ['spread', 'total', 'p0', 'p1', 'p2', 'q1', 'q2', 'q3', 'q4'];
   const html = rows.sort((a, b) => (b.user_name === PNAME) - (a.user_name === PNAME) || a.user_name.localeCompare(b.user_name)).map(r => {
     const g = gradeRow(r) || {}, L = r.lines || {};
     const chips = order.filter(k => r.picks[k]).map(k => `<span class="${g[k] || ''}">${esc(pickLabel(k, r.picks[k], L, teams))}${g[k] === 'W' ? ' ✓' : g[k] === 'L' ? ' ✗' : g[k] === 'P' ? ' push' : ''}</span>`).join('');
@@ -1937,7 +2099,8 @@ document.addEventListener('click', ev => {
   if (!t) return;
   if (t.dataset.bet){
     const [id, k, v] = t.dataset.bet.split('|'); const e = findEvent(id); if (!e || e.state !== 'pre') return;
-    const b = BETS[id] || (BETS[id] = { t: e.date, lines: pickLines(e, D.sum[id]), p: {} });
+    if (isNewQ(e) && !Array.isArray(QS[id])) return;
+    const b = BETS[id] || (BETS[id] = { t: e.date, lines: isNewQ(e) ? { qs: QS[id] } : pickLines(e, D.sum[id]), p: {} });
     if (b.p[k] === v) delete b.p[k]; else b.p[k] = v;
     if (!Object.keys(b.p).length) delete BETS[id];
     saveBets(); pushBet(id); mobileRender(true); return;
