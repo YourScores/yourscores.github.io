@@ -362,6 +362,15 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .tlb .win{color:#3ddc84}.tlb .loss{color:#ff5b5b}
 .tls .win{color:#3ddc84}.tls .loss{color:#ff5b5b}
 .showbtn{background:none;border:1.5px solid var(--gold);color:var(--gold);border-radius:1rem;padding:.3rem .7rem;font-weight:800;font-size:.85rem;white-space:nowrap}
+.picks .pkhead{display:flex;justify-content:space-between;color:var(--dim);font-size:.82rem;margin:-.2rem 0 .5rem}
+.picks .pkhead span{color:var(--gold);font-weight:700}
+.pkrow{display:flex;align-items:center;gap:.5rem;padding:.55rem 0;border-top:1px solid var(--line)}
+.pkn{flex:1;min-width:0;font-weight:700;font-size:.92rem}.pkn small{display:block;color:var(--dim);font-weight:500;font-size:.75rem}
+.pkbs{display:flex;gap:.35rem;flex:none}
+.pkb{background:var(--panel2,#1a1f2a);border:1.5px solid var(--line);color:var(--text);border-radius:.5rem;padding:.45rem .55rem;font-weight:700;font-size:.8rem;min-width:4.6rem}
+.pkb.on{background:var(--gold);border-color:var(--gold);color:#111}
+.pkb:disabled{opacity:.75}.pkb.on:disabled{opacity:1}
+.pkres{font-weight:900;width:2.2rem;text-align:center;flex:none}.pkres.W{color:#3ddc84}.pkres.L{color:#ff5b5b}.pkres.P{color:var(--dim);font-size:.75rem}
 /* install helper */
 .inst{position:relative;background:linear-gradient(135deg,color-mix(in srgb,var(--gold) 18%,var(--panel)),var(--panel));border:1px solid color-mix(in srgb,var(--gold) 45%,transparent);border-radius:.7rem;padding:.8rem .9rem;margin-bottom:.9rem;font-size:.9rem}
 .inst>b{display:block;font-size:1rem;margin-bottom:.35rem;padding-right:1.5rem}
@@ -1327,11 +1336,75 @@ function panelGame(g){
         ? `${c1}<div class="box"><h3>GAME LEADERS</h3>${leadersBox(sum, e, 'Leaders not available')}</div><div class="box"><h3>BOX SCORE</h3>${boxScoreBox(sum, e.teams[0])}<div style="height:1rem"></div>${boxScoreBox(sum, e.teams[1])}</div>`
         : `${c1}<div class="box"><h3>GAME LEADERS</h3>${leadersBox(sum, e, 'Leaders not available')}</div><div class="box">${PHONE && !g.path.includes('basketball') ? `<h3>SCORING</h3>${scoringBox(sum, 0, false, g.path)}<h3 style="margin-top:1rem">TOP PERFORMERS</h3>` : '<h3>TOP PERFORMERS</h3>'}${performersBox(sum, e)}</div>`);
   }
+  if (PHONE) cols = picksBox(e, sum, g.path) + cols;
   const isMN = CFG.mnTeams.some(t => e.teams.some(x => x.id === t.id && t.path === g.path));
   const title = (e.state === 'pre' ? (ymd(new Date(e.date)) === ymd(new Date()) ? 'Game Day · ' : 'Preview · ') : live ? 'Live · ' : 'Recap · ') + `${a.abbr} @ ${h.abbr}`;
   return { title, html: `<div class="gs ${isMN ? 'gsMN' : ''}">
     <div class="gsTop ${e.state === 'pre' ? 'pre' : ''}">${side(a,false)}<div class="gsMid">${mid}</div>${side(h,true)}</div>${story}
     <div class="gsCols" style="grid-template-columns:1.2fr 1fr 1.2fr">${cols}</div></div>` };
+}
+
+/* ---------------- Wolves picks (demo) ----------------
+   Timberwolves games only. Pick the spread, the total and each team's top scorer over/under,
+   before tipoff. Saved in this browser only; graded after the final; a running record. */
+let BETS = {};
+try { BETS = JSON.parse(localStorage.getItem('ysPicks') || '{}'); } catch(e){}
+function saveBets(){ try { localStorage.setItem('ysPicks', JSON.stringify(BETS)); } catch(e){} }
+const isPickGame = (e, path) => path === 'basketball/nba' && e?.teams?.some(t => t.abbr === 'MIN');
+const half = v => { const f = Math.floor(v); return v - f >= .5 ? f + .5 : f - .5; };   // a prop line just under the average, like a book
+function pickLines(e, sum){
+  const m = (sum?.odds?.line || '').match(/^([A-Z]{2,4})\s+(-?\d+(?:\.\d+)?)$/);
+  const props = (sum?.leaders || []).map(t => { const c = (t.cats || []).find(x => /^points/i.test(x.name)); const v = parseFloat(c?.val);
+    return c && c.who && !isNaN(v) ? { team: t.abbr, who: c.who, line: half(v) } : null; }).filter(Boolean);
+  return { fav: m?.[1] || '', spread: m ? Math.abs(+m[2]) : null, ou: sum?.odds?.ou ?? null, props };
+}
+function gradePicks(e, sum, b){
+  if (e.state !== 'post' || !b?.p) return null;
+  const sc = Object.fromEntries(e.teams.map(t => [t.abbr, +t.score]));
+  const r = {}, L = b.lines;
+  if (b.p.spread && L.fav && L.spread != null){
+    const dog = e.teams.find(t => t.abbr !== L.fav)?.abbr, margin = sc[L.fav] - sc[dog];
+    const favCovers = margin > L.spread, push = margin === L.spread;
+    r.spread = push ? 'P' : ((b.p.spread === 'fav') === favCovers ? 'W' : 'L');
+    r.spreadTxt = `${L.fav} ${margin >= 0 ? 'won' : 'lost'} by ${Math.abs(margin)}`;
+  }
+  if (b.p.total && L.ou != null){ const tot = e.teams.reduce((n, t) => n + +t.score, 0);
+    r.total = tot === L.ou ? 'P' : ((b.p.total === 'o') === (tot > L.ou) ? 'W' : 'L'); r.totalTxt = `Total ${tot}`; }
+  (L.props || []).forEach((pr, i) => {
+    const k = 'p' + i; if (!b.p[k]) return;
+    const tm = (sum?.players || []).find(x => x.abbr === pr.team), ix = tm?.labels?.indexOf('PTS');
+    const row = tm?.rows?.find(x => x.who === pr.who);
+    if (!tm) return;
+    const pts = row && ix >= 0 ? +row.st[ix] : 0;
+    r[k] = pts === pr.line ? 'P' : ((b.p[k] === 'o') === (pts > pr.line) ? 'W' : 'L'); r[k + 'Txt'] = `${pts} pts`;
+  });
+  return r;
+}
+function picksRecord(){
+  let w = 0, l = 0;
+  Object.values(BETS).forEach(b => Object.entries(b.r || {}).forEach(([k, v]) => { if (k.endsWith('Txt')) return; if (v === 'W') w++; else if (v === 'L') l++; }));
+  return { w, l };
+}
+function picksBox(e, sum, path){
+  if (!isPickGame(e, path) || hid(e, path)) return '';
+  const b = BETS[e.id] || null;
+  const L = b?.lines || pickLines(e, sum);
+  if (!L.fav && L.ou == null && !L.props.length) return `<div class="box picks"><h3>YOUR PICKS</h3><div class="dim">Lines aren't posted yet. Check back closer to tipoff.</div></div>`;
+  const pre = e.state === 'pre', p = b?.p || {};
+  let r = null;
+  if (e.state === 'post' && b?.p){ r = gradePicks(e, sum, b); if (r && Object.keys(r).length){ b.r = r; saveBets(); } }
+  const dog = e.teams.find(t => t.abbr !== L.fav)?.abbr;
+  const mark = k => r?.[k] ? `<span class="pkres ${r[k]}">${r[k] === 'W' ? '✓' : r[k] === 'L' ? '✗' : 'Push'}</span>` : '';
+  const btn = (k, v, label) => `<button class="pkb ${p[k] === v ? 'on' : ''}" ${pre ? `data-bet="${e.id}|${k}|${v}"` : 'disabled'}>${label}</button>`;
+  const row = (k, name, a, bb, note) => `<div class="pkrow"><div class="pkn">${name}${note ? `<small>${note}</small>` : ''}</div><div class="pkbs">${a}${bb}</div>${mark(k)}</div>`;
+  const rows = [];
+  if (L.fav && L.spread != null) rows.push(row('spread', 'Spread', btn('spread', 'fav', `${esc(L.fav)} -${L.spread}`), btn('spread', 'dog', `${esc(dog)} +${L.spread}`), r?.spreadTxt));
+  if (L.ou != null) rows.push(row('total', 'Total points', btn('total', 'o', `Over ${L.ou}`), btn('total', 'u', `Under ${L.ou}`), r?.totalTxt));
+  L.props.forEach((pr, i) => rows.push(row('p' + i, `${esc(pr.who)} <span class="dim">${esc(pr.team)}</span>`, btn('p' + i, 'o', `Over ${pr.line}`), btn('p' + i, 'u', `Under ${pr.line}`), r?.['p' + i + 'Txt'] || 'points')));
+  const made = Object.keys(p).length, total = rows.length;
+  const rec = picksRecord();
+  const head = pre ? (made ? `${made} of ${total} picked · locks at tipoff` : 'Make your picks · locks at tipoff') : e.state === 'in' ? 'Locked · graded after the final' : r ? `This game: ${Object.entries(r).filter(([k, v]) => !k.endsWith('Txt') && v === 'W').length} of ${made}` : 'No picks made for this game';
+  return `<div class="box picks"><h3>YOUR PICKS</h3><div class="pkhead">${head}${rec.w + rec.l ? `<span>Record ${rec.w}–${rec.l}</span>` : ''}</div>${rows.join('')}</div>`;
 }
 
 function panelNews(){
@@ -1534,6 +1607,7 @@ function mnList(){
       e = full(s.next); const { op, va } = sides(e, t.id);
       kind = chip(ymd(new Date(e.date)) === today ? 'GAME DAY' : 'PREVIEW', 'gd'); big = dayShort(e.date);
       x = `${va} ${esc(op.abbr)} · ${tm(e.date)}${e.tv ? ' · ' + esc(e.tv) : ''}`; sub = s.last ? lastTxt(s.last, t.id) : '';
+      if (isPickGame(e, t.path)){ const n = Object.keys(BETS[e.id]?.p || {}).length; sub = n ? `<span style="color:var(--gold)">Your picks: ${n} made · tap to change</span>` : '<span style="color:var(--gold)">Make your picks · tap the game</span>'; }
     } else if (recent){
       e = full(s.last); const { op, va } = sides(e, t.id);
       kind = chip(hid(e) ? 'HIDDEN' : 'FINAL'); big = hid(e) ? showBtn(e) : res(e, t.id);
@@ -1707,8 +1781,15 @@ function closeGame(){ mDetail = null; mobileRender(); }
 window.addEventListener('popstate', () => { if (mDetail) closeGame(); });
 document.addEventListener('click', ev => {
   if (!PHONE) return;
-  const t = ev.target.closest('[data-install],[data-installx],[data-pick],[data-pkdone],[data-pklg],[data-pkt],[data-pkrm],[data-pkshare],[data-pkmn],[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
+  const t = ev.target.closest('[data-bet],[data-install],[data-installx],[data-pick],[data-pkdone],[data-pklg],[data-pkt],[data-pkrm],[data-pkshare],[data-pkmn],[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
   if (!t) return;
+  if (t.dataset.bet){
+    const [id, k, v] = t.dataset.bet.split('|'); const e = findEvent(id); if (!e || e.state !== 'pre') return;
+    const b = BETS[id] || (BETS[id] = { t: e.date, lines: pickLines(e, D.sum[id]), p: {} });
+    if (b.p[k] === v) delete b.p[k]; else b.p[k] = v;
+    if (!Object.keys(b.p).length) delete BETS[id];
+    saveBets(); mobileRender(true); return;
+  }
   if (t.hasAttribute('data-pick')){ startPicker(); return; }
   if (t.hasAttribute('data-install')){ doInstall(); return; }
   if (t.hasAttribute('data-installx')){ const st = installState(); try { localStorage.setItem('ysInstall', JSON.stringify({ n: (st.n || 0) + 1, at: Date.now() })); } catch(e){} mobileRender(true); return; }
