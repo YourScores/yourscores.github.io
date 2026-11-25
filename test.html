@@ -330,6 +330,7 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .shbar .shb button{display:flex;align-items:center;gap:.25rem;padding:.25rem .45rem;border-radius:1rem;opacity:.55}
 .shbar .shb button img{width:1.35rem;height:1.35rem;object-fit:contain}
 .shbar .shb button.on{opacity:1;border:2px solid var(--gl);box-shadow:0 0 .5rem color-mix(in srgb,var(--gl) 70%,transparent);color:#fff;font-size:.7rem}
+.shhr{font-size:.75em;opacity:.7;font-weight:600}
 .shbar .shb .shlg{font-size:.62rem;font-weight:800;color:var(--dim);letter-spacing:.03em}
 .shbar .shb button.on .shlg{color:#fff}
 .subrow{display:flex;align-items:center;justify-content:space-between}
@@ -926,7 +927,7 @@ function shieldBar(){
   if (!ts.length) return '';
   // same school in two sports (Iowa football and basketball) shares a logo: tag those with the league
   const n = {}; CFG.mnTeams.forEach(t => { const k = t.logo || t.label; n[k] = (n[k] || 0) + 1; });
-  return `<div class="shbar"><span>Hide scores</span><div class="shb">${ts.map(t => { const on = SH.on[tkey(t)];
+  return `<div class="shbar"><span>Hide scores <small class="shhr">· 12 hrs</small></span><div class="shb">${ts.map(t => { const on = SH.on[tkey(t)];
     const tag = n[t.logo || t.label] > 1 ? `<small class="shlg">${esc((lgOf(t.path)?.code || '').toUpperCase())}</small>` : '';
     return `<button data-shield="${esc(tkey(t))}" class="${on ? 'on' : ''}" style="--gl:${tglow(t)}" title="${esc(t.label)}">${logoImg(t.logo)}${tag}${on ? '<b>ON</b>' : ''}</button>`; }).join('')}</div></div>`;
 }
