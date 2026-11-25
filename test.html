@@ -370,6 +370,13 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .pkb{background:var(--panel2,#1a1f2a);border:1.5px solid var(--line);color:var(--text);border-radius:.5rem;padding:.45rem .55rem;font-weight:700;font-size:.8rem;min-width:4.6rem}
 .pkb.on{background:var(--gold);border-color:var(--gold);color:#111}
 .pkb:disabled{opacity:.75}.pkb.on:disabled{opacity:1}
+.pkjoin{display:flex;gap:.4rem;margin:.4rem 0 .2rem}.pkjoin input{flex:1;min-width:0;background:#0b0f16;border:1px solid var(--line);color:var(--txt,#fff);border-radius:8px;padding:.55rem .7rem;font-size:1rem}
+.pkjoin button,.pkno{background:var(--gold);color:#111;border:0;border-radius:8px;padding:.55rem .9rem;font-weight:800}.pkno{background:none;color:var(--dim);padding:.3rem 0;font-weight:600;font-size:.8rem}
+.pkmsg{color:var(--gold);font-size:.82rem;margin:.2rem 0}
+.lb{width:100%;border-collapse:collapse;font-size:.95rem}.lb th{color:var(--dim);font-size:.72rem;font-weight:700;text-align:right;padding:.3rem .2rem;letter-spacing:.06em}.lb th:nth-child(2),.lb td:nth-child(2){text-align:left}
+.lb td{padding:.5rem .2rem;border-top:1px solid var(--line);text-align:right}.lb td:first-child{color:var(--dim);width:1.6rem;text-align:left}.lb tr.me td{color:var(--gold);font-weight:800}.lb td b{font-size:1.1rem}
+.ap{padding:.45rem 0;border-top:1px solid var(--line)}.ap .apn{font-weight:800;margin-bottom:.2rem}.ap .apn.me{color:var(--gold)}.ap .apc{display:flex;flex-wrap:wrap;gap:.3rem}
+.apc span{font-size:.78rem;background:#1a2030;border-radius:6px;padding:.2rem .45rem}.apc span.W{background:#14361f;color:#3ddc84}.apc span.L{background:#3a1616;color:#ff8080}
 .pkres{font-weight:900;width:2.2rem;text-align:center;flex:none}.pkres.W{color:#3ddc84}.pkres.L{color:#ff5b5b}.pkres.P{color:var(--dim);font-size:.75rem}
 /* install helper */
 .inst{position:relative;background:linear-gradient(135deg,color-mix(in srgb,var(--gold) 18%,var(--panel)),var(--panel));border:1px solid color-mix(in srgb,var(--gold) 45%,transparent);border-radius:.7rem;padding:.8rem .9rem;margin-bottom:.9rem;font-size:.9rem}
@@ -495,6 +502,7 @@ function readPicks(){
       const v = q.get('teams');
       localStorage.setItem('ysTeams', v === 'mn' ? 'mn' : JSON.stringify(v.split(',').map(x => { const [c, id] = x.split(':'); return { c, id }; }).filter(x => lgOf((LEAGUES.find(l => l.code === x.c) || {}).path) && x.id)));
     } else if (q.get('wres') === '1' && localStorage.getItem('ysTeams') === null) localStorage.setItem('ysTeams', 'mn');
+    if (q.get('pn') && localStorage.getItem('ysName') === null) localStorage.setItem('ysName', q.get('pn').slice(0, 20));
     if (q.has('teams') || q.has('wres')) history.replaceState(null, '', location.pathname);
     // someone who used the app before the picker existed keeps the Minnesota lineup and wrestling
     if (localStorage.getItem('ysTeams') === null && localStorage.getItem('gsTab') !== null){ localStorage.setItem('ysTeams', 'mn'); localStorage.setItem('ysWres', '1'); }
@@ -729,7 +737,8 @@ async function fetchSummary(e, path){
         last5: Object.fromEntries((s.lastFiveGames || []).map(t => [t.team?.abbreviation, (t.events || []).map(x => x.gameResult).join('')])),
         story: s.article?.headline || '',
         lines: Object.fromEntries(hc.map(c => [c.team?.abbreviation, (c.linescores || []).map(l => l.displayValue)])),
-        rec: Object.fromEntries(hc.map(c => [c.team?.abbreviation, (c.record || [])[0]?.summary || '']))
+        rec: Object.fromEntries(hc.map(c => [c.team?.abbreviation, (c.record || [])[0]?.summary || ''])),
+        hdr: { state: s.header?.competitions?.[0]?.status?.type?.state || '', teams: hc.map(c => ({ abbr: c.team?.abbreviation, score: c.score })) }
       };
       D.sumAt[e.id] = Date.now();
     } catch(err){}
@@ -1404,7 +1413,145 @@ function picksBox(e, sum, path){
   const made = Object.keys(p).length, total = rows.length;
   const rec = picksRecord();
   const head = pre ? (made ? `${made} of ${total} picked · locks at tipoff` : 'Make your picks · locks at tipoff') : e.state === 'in' ? 'Locked · graded after the final' : r ? `This game: ${Object.entries(r).filter(([k, v]) => !k.endsWith('Txt') && v === 'W').length} of ${made}` : 'No picks made for this game';
-  return `<div class="box picks"><h3>YOUR PICKS</h3><div class="pkhead">${head}${rec.w + rec.l ? `<span>Record ${rec.w}–${rec.l}</span>` : ''}</div>${rows.join('')}</div>`;
+  return `<div class="box picks"><h3>YOUR PICKS</h3><div class="pkhead">${head}${rec.w + rec.l ? `<span>Record ${rec.w}–${rec.l}</span>` : ''}</div>${rows.join('')}${joinPrompt(true)}</div>` + (pre ? boardCount(e.id) : allPicksBox(e.id));
+}
+
+/* ---------------- Wolves picks board (shared, Supabase) ----------------
+   Opt in with a display name; picks sync to one shared table. The database refuses any save
+   after tipoff. Everyone's picks show once the game starts. 1 point per correct pick. */
+const SB = 'https://vkwqmnwdzqfmgeelomek.supabase.co/rest/v1/picks', SBK = 'sb_publishable_Q6eMyyhmaQdL9vuozoLlUg_Buc5UAEx';
+let PNAME = '', JOIN = { msg: '', confirm: '' };
+const hasWolves = () => CFG.mnTeams.some(t => t.path === 'basketball/nba' && (t.abbr === 'MIN' || ['16','min'].includes(String(t.team).toLowerCase())));
+async function sb(method, q, body){
+  const r = await fetch(SB + (q || ''), { method, headers: { apikey: SBK, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }, body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) throw new Error(r.status);
+  return method === 'GET' ? r.json() : null;
+}
+const nameQ = n => 'user_name=eq.' + encodeURIComponent(n);
+function pushBet(id){
+  if (!PNAME) return;
+  const b = BETS[id];
+  if (!b) return sb('DELETE', `?${nameQ(PNAME)}&game_id=eq.${id}`).catch(() => {});
+  return sb('POST', '', { user_name: PNAME, game_id: id, game_date: b.t, picks: b.p, lines: b.lines, updated_at: new Date().toISOString() }).catch(() => {});
+}
+// bring this name's saved picks into this browser (new phone, iPhone home-screen app), and send up any made here first
+async function pullMine(){
+  if (!PNAME) return;
+  try {
+    const rows = await sb('GET', `?select=*&${nameQ(PNAME)}`);
+    rows.forEach(r => { if (!BETS[r.game_id]) BETS[r.game_id] = { t: r.game_date, lines: r.lines, p: r.picks || {} }; });
+    saveBets();
+    Object.entries(BETS).forEach(([id, b]) => { if (new Date(b.t) > Date.now() && !rows.some(r => r.game_id === id)) pushBet(id); });
+  } catch(e){}
+}
+async function joinBoard(raw){
+  const name = (raw || '').trim().replace(/\s+/g, ' ').slice(0, 20);
+  if (name.length < 2){ JOIN.msg = 'Use at least 2 letters.'; return mobileRender(true, true); }
+  let use = name;
+  if (JOIN.confirm !== name.toLowerCase()){
+    try {
+      const rows = await sb('GET', `?select=user_name&user_name=ilike.${encodeURIComponent(name)}&limit=1`);
+      if (rows.length){ JOIN = { confirm: name.toLowerCase(), msg: `${rows[0].user_name} is already on the board. Tap Join again if that's you.`, val: name }; return mobileRender(true, true); }
+    } catch(e){ JOIN.msg = "Couldn't reach the board. Try again in a minute."; return mobileRender(true, true); }
+  } else {
+    try { const rows = await sb('GET', `?select=user_name&user_name=ilike.${encodeURIComponent(name)}&limit=1`); if (rows.length) use = rows[0].user_name; } catch(e){}
+  }
+  PNAME = use; JOIN = { msg: '', confirm: '' };
+  try { localStorage.setItem('ysName', PNAME); } catch(e){}
+  syncUrl(PICKS);
+  await pullMine(); BOARDAT = 0; await loadBoard(); mobileRender(true, true);
+}
+function joinPrompt(inGame){
+  if (PNAME || !hasWolves()) return '';
+  let no = false; try { no = inGame && localStorage.getItem('ysNameNo') === '1'; } catch(e){}
+  if (no) return '';
+  return `<div style="margin-top:.7rem;border-top:1px solid var(--line);padding-top:.6rem"><div style="font-weight:700">Join the Wolves picks board?</div>
+    <div class="dim" style="font-size:.82rem">Pick a name your friends will know. Your picks lock at tipoff and everyone's show after.</div>
+    <div class="pkjoin"><input id="pkname" maxlength="20" placeholder="Your name" autocomplete="nickname" value="${esc(JOIN.val || '')}"><button data-join>Join</button></div>
+    ${JOIN.msg ? `<div class="pkmsg">${esc(JOIN.msg)}</div>` : ''}${inGame ? '<button class="pkno" data-joinno>No thanks</button>' : ''}</div>`;
+}
+
+let BOARD = null, BOARDAT = 0, BOARDING = null;
+const FINALS = {};   // game id -> { e, sum } once final
+function loadBoard(){
+  if (BOARDING) return BOARDING;
+  if (BOARD && BOARD !== 'err' && Date.now() - BOARDAT < 90e3) return Promise.resolve();
+  BOARDING = (async () => {
+    try {
+      const rows = await sb('GET', '?select=*&order=game_date.desc');
+      const ids = [...new Set(rows.filter(r => new Date(r.game_date) < Date.now()).map(r => r.game_id))];
+      await Promise.all(ids.map(async id => {
+        if (FINALS[id]) return;
+        const ev = findEvent(id);
+        if (ev && ev.state !== 'post') return;
+        await fetchSummary({ id }, 'basketball/nba');
+        const h = D.sum[id]?.hdr;
+        if (h?.state === 'post') FINALS[id] = { e: { id, state: 'post', teams: h.teams }, sum: D.sum[id] };
+      }));
+      BOARD = rows; BOARDAT = Date.now();
+    } catch(e){ if (!BOARD) BOARD = 'err'; }
+    BOARDING = null;
+  })();
+  return BOARDING;
+}
+const gradeRow = r => FINALS[r.game_id] ? (gradePicks(FINALS[r.game_id].e, FINALS[r.game_id].sum, { p: r.picks || {}, lines: r.lines || {} }) || {}) : null;
+function standings(){
+  const by = {};
+  (Array.isArray(BOARD) ? BOARD : []).forEach(r => {
+    const u = by[r.user_name] || (by[r.user_name] = { name: r.user_name, w: 0, l: 0, p: 0, g: 0 });
+    const g = gradeRow(r); if (!g) return;
+    u.g++; Object.entries(g).forEach(([k, v]) => { if (k.endsWith('Txt')) return; if (v === 'W') u.w++; else if (v === 'L') u.l++; else if (v === 'P') u.p++; });
+  });
+  return Object.values(by).sort((a, b) => b.w - a.w || (b.w / (b.w + b.l || 1)) - (a.w / (a.w + a.l || 1)) || a.l - b.l || a.name.localeCompare(b.name));
+}
+function pickLabel(k, v, L, teams){
+  if (k === 'spread'){ const dog = (teams || []).find(t => t.abbr !== L.fav)?.abbr || 'Dog'; return v === 'fav' ? `${L.fav} -${L.spread}` : `${dog} +${L.spread}`; }
+  if (k === 'total') return `${v === 'o' ? 'Over' : 'Under'} ${L.ou}`;
+  const pr = (L.props || [])[+k.slice(1)]; if (!pr) return '';
+  return `${pr.who.split(' ').slice(-1)[0]} ${v === 'o' ? 'O' : 'U'} ${pr.line}`;
+}
+function allPicksBox(id){
+  if (!Array.isArray(BOARD)) return '';
+  const rows = BOARD.filter(r => r.game_id === id && Object.keys(r.picks || {}).length);
+  if (!rows.length) return '';
+  const teams = FINALS[id]?.e.teams || findEvent(id)?.teams;
+  const order = ['spread', 'total', 'p0', 'p1', 'p2'];
+  const html = rows.sort((a, b) => (b.user_name === PNAME) - (a.user_name === PNAME) || a.user_name.localeCompare(b.user_name)).map(r => {
+    const g = gradeRow(r) || {}, L = r.lines || {};
+    const chips = order.filter(k => r.picks[k]).map(k => `<span class="${g[k] || ''}">${esc(pickLabel(k, r.picks[k], L, teams))}${g[k] === 'W' ? ' ✓' : g[k] === 'L' ? ' ✗' : g[k] === 'P' ? ' push' : ''}</span>`).join('');
+    const pts = Object.entries(g).filter(([k, v]) => !k.endsWith('Txt') && v === 'W').length;
+    return `<div class="ap"><div class="apn ${r.user_name === PNAME ? 'me' : ''}">${esc(r.user_name)}${FINALS[id] ? ` <span class="dim" style="font-weight:600">· ${pts} pt${pts === 1 ? '' : 's'}</span>` : ''}</div><div class="apc">${chips}</div></div>`;
+  }).join('');
+  return `<div class="box"><h3>EVERYONE'S PICKS</h3>${html}</div>`;
+}
+function boardCount(id){
+  if (!Array.isArray(BOARD)) return '';
+  const n = BOARD.filter(r => r.game_id === id && Object.keys(r.picks || {}).length).length;
+  return n ? `<div class="dim" style="font-size:.82rem;margin:-.4rem 0 1rem">${n} ${n === 1 ? 'player has' : 'players have'} picked. Everyone's picks show at tipoff.</div>` : '';
+}
+function panelPicks(){
+  if (!BOARD && !BOARDING) loadBoard().then(() => { if (mTab === 'pk' && !mDetail) mobileRender(true); });
+  let out = '';
+  if (!PNAME) out += `<div class="box picks">${joinPrompt(false)}</div>`;
+  if (BOARD === 'err') return out + `<div class="empty">Couldn't load the board. Try again in a minute.</div>`;
+  if (!BOARD) return out + `<div class="empty">Loading the board…</div>`;
+  const st = standings();
+  out += `<div class="box"><h3>WOLVES PICKS BOARD</h3>` + (st.length ? `<table class="lb"><tr><th></th><th>PLAYER</th><th>PTS</th><th>W–L</th><th>WIN %</th></tr>` +
+    st.map((u, i) => `<tr class="${u.name === PNAME ? 'me' : ''}"><td>${i + 1}</td><td>${esc(u.name)}</td><td><b>${u.w}</b></td><td>${u.w}–${u.l}</td><td>${u.w + u.l ? Math.round(100 * u.w / (u.w + u.l)) + '%' : '–'}</td></tr>`).join('') + `</table>`
+    : `<div class="dim">No one is on the board yet.</div>`) +
+    `<div class="dim" style="font-size:.78rem;margin-top:.6rem">1 point per correct pick. Pushes don't count. Picks lock at tipoff and everyone's show after.${PNAME ? ` You're on as <b style="color:var(--gold)">${esc(PNAME)}</b>.` : ''}</div></div>`;
+  // the next Wolves game, then recent games with everyone's picks
+  const ids = [...new Set(BOARD.map(r => r.game_id))];
+  const next = BOARD.filter(r => new Date(r.game_date) > Date.now()).sort((a, b) => new Date(a.game_date) - new Date(b.game_date))[0];
+  if (next){ const ev = findEvent(next.game_id);
+    out += `<div class="wl" style="margin-bottom:1rem"><div class="wli" ${ev ? `data-gid="${ev.id}" data-path="basketball/nba"` : ''}><span class="wk"><span class="chip">NEXT</span></span><b>${ev ? esc(ev.teams[0].abbr) + ' @ ' + esc(ev.teams[1].abbr) : 'Wolves'}</b><span class="wr">${whenText(next.game_date)}</span><i>›</i></div></div>` + boardCount(next.game_id); }
+  ids.filter(id => BOARD.some(r => r.game_id === id && new Date(r.game_date) < Date.now())).slice(0, 5).forEach(id => {
+    const ev = FINALS[id]?.e || findEvent(id); const [a, h] = ev?.teams || [];
+    const title = a ? `${esc(a.abbr)} ${esc(a.score ?? '')} – ${esc(h.score ?? '')} ${esc(h.abbr)}${FINALS[id] ? ' · Final' : ' · In progress'}` : 'Wolves game';
+    const hide = ev && findEvent(id) && hid(findEvent(id), 'basketball/nba');
+    out += `<div class="sub" style="margin-top:.6rem">${hide ? 'Score hidden' : title}</div>` + (hide ? '' : allPicksBox(id));
+  });
+  return out;
 }
 
 function panelNews(){
@@ -1535,7 +1682,7 @@ const PHONE = PHONE_MQ.matches;
 PHONE_MQ.addEventListener?.('change', () => location.reload());
 const tabsList = () => [['mn', IS_DEFAULT ? 'Minnesota' : 'My Teams'],
   ...pickedLeagues().filter(leagueInSeason).map(L => [L.code, L.name]),
-  ...(WRES ? [['wr','Wrestling']] : []), ['news','News']];
+  ...(WRES ? [['wr','Wrestling']] : []), ...(hasWolves() ? [['pk','Picks']] : []), ['news','News']];
 let mTab = 'mn', mDetail = null, mPick = false;
 try { mTab = localStorage.getItem('gsTab') || 'mn'; } catch(e){}
 function refreshView(){ if (PHONE) mobileRender(true); else rerenderSoft(); }
@@ -1693,7 +1840,7 @@ function savePicks(v){ try { localStorage.setItem('ysTeams', typeof v === 'strin
 function picksQuery(v){
   if (!IS_IOS || installed()) return '';
   const t = v === 'mn' ? 'mn' : Array.isArray(v) && v.length ? v.map(p => p.c + ':' + p.id).join(',') : '';
-  return t ? `?teams=${t}${WRES ? '&wres=1' : ''}` : '';
+  return t ? `?teams=${t}${WRES ? '&wres=1' : ''}${PNAME ? '&pn=' + encodeURIComponent(PNAME) : ''}` : '';
 }
 function syncUrl(v){ const q = picksQuery(v); if (q && location.search !== q) history.replaceState(null, '', location.pathname + q); }
 let pkDirty = false;
@@ -1752,11 +1899,13 @@ function mobileContent(){
     case 'nba':  return panelNBA().html + `<div class="sub" style="margin-top:1.2rem">Standings</div>` + panelNBAStand().html;
     case 'wr':   return panelWrestling().html;
     case 'news': return panelNews().html;
+    case 'pk':   return panelPicks();
   }
   if (LEAGUES.some(L => L.code === mTab)) return panelLeague(mTab);
   return '';
 }
-function mobileRender(keepScroll){
+function mobileRender(keepScroll, force){
+  if (!force && document.activeElement?.id === 'pkname') return;   // don't wipe a name being typed
   const y = window.scrollY;
   const anyLive = CFG.mnTeams.some((t,i) => t.events && teamState(t,i).live);
   // red dot = one of your teams is live right now (on My Teams and on that team's league tab)
@@ -1775,21 +1924,24 @@ async function openGame(id, path){
   mDetail = { id, path, e };
   history.pushState({ game: id }, '');
   mobileRender(); window.scrollTo(0, 0);
+  if (e && isPickGame(e, path) && hasWolves()) loadBoard().then(() => { if (mDetail && mDetail.id === id) mobileRender(true); });
   if (e && (!D.sum[id] || e.state === 'in')) { await fetchSummary(e, path); if (mDetail && mDetail.id === id) mobileRender(true); }
 }
 function closeGame(){ mDetail = null; mobileRender(); }
 window.addEventListener('popstate', () => { if (mDetail) closeGame(); });
 document.addEventListener('click', ev => {
   if (!PHONE) return;
-  const t = ev.target.closest('[data-bet],[data-install],[data-installx],[data-pick],[data-pkdone],[data-pklg],[data-pkt],[data-pkrm],[data-pkshare],[data-pkmn],[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
+  const t = ev.target.closest('[data-join],[data-joinno],[data-bet],[data-install],[data-installx],[data-pick],[data-pkdone],[data-pklg],[data-pkt],[data-pkrm],[data-pkshare],[data-pkmn],[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
   if (!t) return;
   if (t.dataset.bet){
     const [id, k, v] = t.dataset.bet.split('|'); const e = findEvent(id); if (!e || e.state !== 'pre') return;
     const b = BETS[id] || (BETS[id] = { t: e.date, lines: pickLines(e, D.sum[id]), p: {} });
     if (b.p[k] === v) delete b.p[k]; else b.p[k] = v;
     if (!Object.keys(b.p).length) delete BETS[id];
-    saveBets(); mobileRender(true); return;
+    saveBets(); pushBet(id); mobileRender(true); return;
   }
+  if (t.hasAttribute('data-join')){ const inp = $('#pkname'); const v = inp?.value || ''; JOIN.val = v; inp?.blur(); joinBoard(v); return; }
+  if (t.hasAttribute('data-joinno')){ try { localStorage.setItem('ysNameNo', '1'); } catch(e){} mobileRender(true); return; }
   if (t.hasAttribute('data-pick')){ startPicker(); return; }
   if (t.hasAttribute('data-install')){ doInstall(); return; }
   if (t.hasAttribute('data-installx')){ const st = installState(); try { localStorage.setItem('ysInstall', JSON.stringify({ n: (st.n || 0) + 1, at: Date.now() })); } catch(e){} mobileRender(true); return; }
@@ -1812,7 +1964,7 @@ document.addEventListener('click', ev => {
     saveSH(); mobileRender(true); return; }
   if (t.dataset.reveal){ SH.rev[t.dataset.reveal] = Date.now(); saveSH(); mobileRender(true); return; }
   if (t.dataset.tab && mPick && pkDirty && SELW.length){ mTab = t.dataset.tab; try { localStorage.setItem('gsTab', mTab); } catch(e){} savePicks(SELW); return; }
-  if (t.dataset.tab){ mTab = t.dataset.tab; mDetail = null; mPick = false; try { localStorage.setItem('gsTab', mTab); } catch(e){} mobileRender(); window.scrollTo(0,0); return; }
+  if (t.dataset.tab){ if (t.dataset.tab === 'pk') BOARDAT = 0, loadBoard().then(() => { if (mTab === 'pk' && !mDetail) mobileRender(true); }); mTab = t.dataset.tab; mDetail = null; mPick = false; try { localStorage.setItem('gsTab', mTab); } catch(e){} mobileRender(); window.scrollTo(0,0); return; }
   if (t.hasAttribute('data-back')){ history.back(); return; }
   if (t.dataset.gid){ openGame(t.dataset.gid, t.dataset.path); return; }
   if (t.dataset.mn){
@@ -1822,6 +1974,7 @@ document.addEventListener('click', ev => {
     if (e) openGame(e.id, team.path);
   }
 });
+document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'pkname'){ JOIN.val = ev.target.value; ev.target.blur(); joinBoard(ev.target.value); } });
 // keep live game details fresh on the phone
 setInterval(async () => {
   if (!PHONE || !mDetail) return;
@@ -1833,6 +1986,8 @@ setInterval(async () => {
 function tick(){ $('#clock').textContent = fmt(new Date(), { hour:'numeric', minute:'2-digit' }); }
 async function boot(){
   readPicks(); applyPicks();
+  try { PNAME = localStorage.getItem('ysName') || ''; } catch(e){}
+  if (PNAME) pullMine();
   if (!IS_DEFAULT) await ensureMeta();
   if (PHONE) syncUrl(PICKS);
   if (PHONE && !IS_DEFAULT && !CFG.mnTeams.length){ mPick = true; SELW = []; }
