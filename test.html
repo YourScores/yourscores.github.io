@@ -387,7 +387,7 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .wban{display:flex;align-items:center;gap:.8rem;padding:.9rem 1rem;border-radius:.8rem;margin-bottom:1rem;background:linear-gradient(135deg,#0C2340 0%,#236192 100%);border-bottom:3px solid #78BE20}
 .wban img{width:3.2rem;height:3.2rem;object-fit:contain;flex:none}
 .wban b{display:block;font-size:1.35rem;letter-spacing:.08em;color:#fff}.wban small{color:#c4c8c8;font-size:.78rem}
-.wphoto{display:block;width:100%;height:16rem;object-fit:cover;object-position:50% 52%;border-radius:.8rem;margin:-.3rem 0 1rem;border:2px solid #236192}
+.wphoto{display:block;width:100%;height:auto;border-radius:.8rem;margin:0 0 1rem;border:2px solid #236192}
 .lb{width:100%;border-collapse:collapse;font-size:.95rem}.lb th{color:var(--dim);font-size:.72rem;font-weight:700;text-align:right;padding:.3rem .2rem;letter-spacing:.06em}.lb th:nth-child(2),.lb td:nth-child(2){text-align:left}
 .lb td{padding:.5rem .2rem;border-top:1px solid var(--line);text-align:right}.lb td:first-child{color:var(--dim);width:1.6rem;text-align:left}.lb tr.me td{color:var(--gold);font-weight:800}.lb td b{font-size:1.1rem}
 .ap{padding:.45rem 0;border-top:1px solid var(--line)}.ap .apn{font-weight:800;margin-bottom:.2rem}.ap .apn.me{color:var(--gold)}.ap .apc{display:flex;flex-wrap:wrap;gap:.3rem}
@@ -1719,9 +1719,9 @@ function boardCount(id){
 const PICKS_PHOTO = 'picks-photo.jpg';   // e.g. 'picks-photo.jpg' in the repo; shown in the banner when set
 function panelPicks(){
   const photo = PICKS_PHOTO ? `<img class="wphoto" src="${PICKS_PHOTO}" alt="">` : '';
-  return `<div class="wpg"><div class="wban">${logoImg('https://a.espncdn.com/i/teamlogos/nba/500/min.png')}<div><b>WOLVES PICKS</b><small>Pick 'em before tipoff · 1 point per correct pick</small></div></div>${photo}${panelPicksBody()}</div>`;
+  return `<div class="wpg"><div class="wban">${logoImg('https://a.espncdn.com/i/teamlogos/nba/500/min.png')}<div><b>WOLVES PICKS</b><small>Pick 'em before tipoff · 1 point per correct pick</small></div></div>${panelPicksBody(photo)}</div>`;
 }
-function panelPicksBody(){
+function panelPicksBody(photo){
   if (!BOARD && !BOARDING) loadBoard().then(() => { if (mTab === 'pk' && !mDetail) mobileRender(true); });
   let out = '';
   if (!PNAME) out += `<div class="box picks">${joinPrompt(false)}</div>`;
@@ -1731,7 +1731,7 @@ function panelPicksBody(){
   out += `<div class="box"><h3>WOLVES PICKS BOARD</h3>` + (st.length ? `<table class="lb"><tr><th></th><th>PLAYER</th><th>PTS</th><th>W–L</th><th>WIN %</th></tr>` +
     st.map((u, i) => `<tr class="${u.name === PNAME ? 'me' : ''}"><td>${i + 1}</td><td>${esc(u.name)}</td><td><b>${u.w}</b></td><td>${u.w}–${u.l}</td><td>${u.w + u.l ? Math.round(100 * u.w / (u.w + u.l)) + '%' : '–'}</td></tr>`).join('') + `</table>`
     : `<div class="dim">No one is on the board yet.</div>`) +
-    `<div class="dim" style="font-size:.78rem;margin-top:.6rem">1 point per correct pick. Pushes don't count. Picks lock at tipoff and everyone's show after.${PNAME ? ` You're on as <b style="color:var(--gold)">${esc(PNAME)}</b>.` : ''}</div></div>`;
+    `<div class="dim" style="font-size:.78rem;margin-top:.6rem">1 point per correct pick. Pushes don't count. Picks lock at tipoff and everyone's show after.${PNAME ? ` You're on as <b style="color:var(--gold)">${esc(PNAME)}</b>.` : ''}</div></div>` + (photo || '');
   // the next Wolves game, then recent games with everyone's picks
   const ids = [...new Set(BOARD.map(r => r.game_id))];
   const next = BOARD.filter(r => new Date(r.game_date) > Date.now()).sort((a, b) => new Date(a.game_date) - new Date(b.game_date))[0];
