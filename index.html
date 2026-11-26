@@ -1058,6 +1058,7 @@ const glowCls = t => t?.glow ? 'glow' : '';
 const glowSty = t => t?.glow ? ` style="--gl:${t.glow}"` : '';
 const myAbbr = (path, abbr) => CFG.mnTeams.find(t => t.path === path && t.abbr && t.abbr === abbr) || null;
 const stSty = (path, abbr) => { const t = myAbbr(path, abbr); return t ? ` style="--gl:${tglow(t)}"` : ''; };
+const SUMREQ = {};
 function gameTile(e, mnIds, path){
   const hideRec = hiddenIds(path);
   if (hid(e, path)){
@@ -1068,6 +1069,12 @@ function gameTile(e, mnIds, path){
   const live = e.state === 'in', pre = e.state === 'pre', post = e.state === 'post';
   const ups = upsetML(e);
   const isMN = e.teams.some(x => mnIds.includes(x.id));
+  // your team's upcoming game from its schedule feed has no records or line: fill them from the game summary
+  if (pre && isMN && (!e.odds || e.teams.some(x => !x.rec))){
+    const sm = D.sum[e.id];
+    if (sm){ e = { ...e, odds: e.odds || sm.odds || null, teams: e.teams.map(x => x.rec ? x : { ...x, rec: sm.rec?.[x.abbr] || '' }) }; }
+    else if (path && !SUMREQ[e.id]){ SUMREQ[e.id] = 1; fetchSummary(e, path).then(() => refreshView()); }
+  }
   // pre-game: spread sits in the score slot on the favorite's row, total on the other row
   const odd = {};
   if (pre && e.odds){
