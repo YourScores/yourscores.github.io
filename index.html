@@ -1741,7 +1741,11 @@ function qName(q){
   if (q.t === 'tech') return 'Technical foul in the game';
   if (q.t === 'blow') return `Anyone leads by ${q.line}+`;
   if (q.t === 'tpts') return 'Wolves points';
-  if (q.t === 'h2h' && q.duel) return 'Star duel: more points';
+  if (q.t === 'h2h'){
+    const verb = { PTS: 'scores more points', REB: 'gets more rebounds', AST: 'gets more assists', '3PM': 'makes more 3s' }[q.stat];
+    if (q.a.who) return `${q.duel ? 'Star duel: who' : 'Who'} ${verb || 'has more ' + (PST[q.stat] || TST[q.stat]).lab}?`;
+    return `Which team has more ${(PST[q.stat] || TST[q.stat]).lab}?`;
+  }
   if (q.t === 'pstat') return `${esc(lastName(q.who))} ${PST[q.stat].lab}`;
   if (q.t === 'tstat') return `Wolves ${TST[q.stat].lab}`;
   return `More ${(PST[q.stat] || TST[q.stat]).lab}`;
@@ -1766,7 +1770,7 @@ function qNote(q){
   if (q.t === 'blow') return 'either team, any point in the game';
   if (q.t === 'tpts') return `season ${q.avg} a game`;
   if (q.t === 'tstat') return `season ${fmtV(q.avg, q.stat)}`;
-  if (q.t === 'h2h') return `${fmtV(q.a.avg, q.stat)} vs ${fmtV(q.b.avg, q.stat)} a game`;
+  if (q.t === 'h2h') return `${q.a.team} ${fmtV(q.a.avg, q.stat)} a game vs ${q.b.team} ${fmtV(q.b.avg, q.stat)}`;
   return '';
 }
 function qOpts(q){
