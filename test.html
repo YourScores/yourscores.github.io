@@ -394,7 +394,8 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .pg td.n{text-align:left;max-width:6.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pg tr.me td.n{color:var(--gold)}
 .pg td.W{color:#3ddc84}.pg td.L{color:#ff6b6b}.pg td.P{color:var(--dim)}.pg td.pt{color:var(--gold);font-size:1.05rem}
 .wpg .pg td{border-color:#1d3f66}
-.sos .sosh{display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem}.sos .sosh h3{margin:0}.sos .sosh span{display:flex;flex:none}.sos .sosh button{background:var(--panel2,#1a2030);color:var(--dim);border:0;border-radius:.4rem;padding:.2rem .6rem;font-weight:800;margin-left:.25rem}.sos .sosh button.on{background:var(--gold);color:#000}
+.sos .sosh{display:flex;justify-content:space-between;align-items:center;margin:-.1rem 0 .5rem}.sos .sosh span{display:flex;flex:none}.sos .sosh small{font-size:.72rem}.sos .sosh button:first-child{margin-left:0}
+.sosl.soshd{cursor:default;padding:.1rem 0 .3rem;border-top:0;font-size:.62rem;font-weight:800;color:var(--dim);letter-spacing:.05em}.sos .easy{color:#3ddc84}.sos .hard{color:#ff6b6b}.sos .sosh button{background:var(--panel2,#1a2030);color:var(--dim);border:0;border-radius:.4rem;padding:.2rem .6rem;font-weight:800;margin-left:.25rem}.sos .sosh button.on{background:var(--gold);color:#000}
 .sosl{display:grid;grid-template-columns:1.6fr 1fr .8fr .8fr .4rem;align-items:center;gap:.3rem;padding:.5rem 0;border-top:1px solid var(--line);text-align:center;cursor:pointer}
 .sosl .sost{display:flex;align-items:center;gap:.35rem;text-align:left;font-weight:800}.sosl .sost img{width:1.3rem;height:1.3rem;object-fit:contain}.sosl .sost small{color:var(--dim);font-weight:600;font-size:.72rem}
 .sosl b{display:block;font-size:1rem}.sosl small{color:var(--dim);font-size:.65rem}.sosl i{color:var(--dim);font-style:normal}.sosl.me .sost{color:var(--gold)}
@@ -1211,15 +1212,19 @@ function sosBox(conf){
   const list = sosTeams(conf); if (!list.length) return '';
   loadSOS(list);
   const calc = list.map(x => ({ ...x, c: sosCalc(x.r.abbr, SOSN) }));
-  if (calc.some(x => !x.c)) return `<div class="box sos"><h3>NEXT ${SOSN} SCHEDULE</h3><div class="dim">Loading schedules…</div></div>`;
-  calc.sort((a, b) => (a.c.opp ?? 1) - (b.c.opp ?? 1));
+  if (calc.some(x => !x.c)) return `<div class="box sos"><h3>STRENGTH OF SCHEDULE</h3><div class="dim">Loading schedules…</div></div>`;
+  // standings order; the easiest and hardest stretches get colored
+  const opps = calc.map(x => x.c.opp).filter(v => v != null), lo = Math.min(...opps), hi = Math.max(...opps);
+  const oc = v => v == null || lo === hi ? '' : v === lo ? 'easy' : v === hi ? 'hard' : '';
   const line = x => { const c = x.c, open = SOSOPEN[x.r.abbr];
     return `<div class="sosl ${x.me ? 'me' : ''}" data-sos="${esc(x.r.abbr)}"><span class="sost">${logoImg(x.r.logo)}${esc(x.r.abbr)}<small>${x.r.w}-${x.r.l}</small></span>
-      <span><b>${pct3(c.opp)}</b><small>opp</small></span><span><b>${c.home}</b><small>home</small></span><span><b>${c.b2b}</b><small>B2B</small></span><i>${open ? '▾' : '›'}</i></div>` +
+      <span><b class="${oc(c.opp)}">${pct3(c.opp)}</b></span><span><b>${c.home}</b></span><span><b>${c.b2b}</b></span><i>${open ? '▾' : '›'}</i></div>` +
       (open ? `<div class="sosx">${c.rows.map(g => `<div><span>${fmt(new Date(g.date), { weekday: 'short', month: 'numeric', day: 'numeric' })}</span><span>${g.home ? 'vs' : '@'} ${esc(g.opp)}</span><span>${pct3(g.p)}</span><span>${g.b2b ? '<em>B2B</em>' : ''}</span></div>`).join('')}</div>` : ''); };
-  return `<div class="box sos"><div class="sosh"><h3>NEXT ${SOSN} SCHEDULE</h3><span><button class="${SOSN === 5 ? 'on' : ''}" data-sosn="5">5</button><button class="${SOSN === 10 ? 'on' : ''}" data-sosn="10">10</button></span></div>
-    <div class="dim" style="font-size:.75rem;margin:-.2rem 0 .4rem">Everyone ahead plus the next two behind, easiest first. Opp = opponents' combined win %. Tap a team for its games.</div>
-    ${calc.map(line).join('')}</div>`;
+  return `<div class="box sos"><h3>STRENGTH OF SCHEDULE</h3>
+    <div class="sosh"><span><button class="${SOSN === 5 ? 'on' : ''}" data-sosn="5">Next 5</button><button class="${SOSN === 10 ? 'on' : ''}" data-sosn="10">Next 10</button></span><small class="dim">Tap a team for its games</small></div>
+    <div class="sosl soshd"><span></span><span>OPP WIN %</span><span>HOME</span><span>B2B</span><i></i></div>
+    ${calc.map(line).join('')}
+    <div class="dim" style="font-size:.72rem;margin-top:.4rem">Teams ahead of you plus the next two behind. <span class="easy">Green</span> = easiest stretch, <span class="hard">red</span> = hardest.</div></div>`;
 }
 
 /* wrestling helpers */
