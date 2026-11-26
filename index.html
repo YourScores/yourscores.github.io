@@ -394,6 +394,11 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .pg td.n{text-align:left;max-width:6.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pg tr.me td.n{color:var(--gold)}
 .pg td.W{color:#3ddc84}.pg td.L{color:#ff6b6b}.pg td.P{color:var(--dim)}.pg td.pt{color:var(--gold);font-size:1.05rem}
 .wpg .pg td{border-color:#1d3f66}
+.sos .sosh{display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem}.sos .sosh h3{margin:0}.sos .sosh span{display:flex;flex:none}.sos .sosh button{background:var(--panel2,#1a2030);color:var(--dim);border:0;border-radius:.4rem;padding:.2rem .6rem;font-weight:800;margin-left:.25rem}.sos .sosh button.on{background:var(--gold);color:#000}
+.sosl{display:grid;grid-template-columns:1.6fr 1fr .8fr .8fr .4rem;align-items:center;gap:.3rem;padding:.5rem 0;border-top:1px solid var(--line);text-align:center;cursor:pointer}
+.sosl .sost{display:flex;align-items:center;gap:.35rem;text-align:left;font-weight:800}.sosl .sost img{width:1.3rem;height:1.3rem;object-fit:contain}.sosl .sost small{color:var(--dim);font-weight:600;font-size:.72rem}
+.sosl b{display:block;font-size:1rem}.sosl small{color:var(--dim);font-size:.65rem}.sosl i{color:var(--dim);font-style:normal}.sosl.me .sost{color:var(--gold)}
+.sosx{padding:.1rem 0 .5rem 1.7rem;font-size:.82rem}.sosx div{display:grid;grid-template-columns:5.5rem 1fr 3rem 2.5rem;padding:.15rem 0;color:var(--dim)}.sosx div span:nth-child(2){color:var(--txt,#fff)}.sosx em{font-style:normal;color:#ff9b5b;font-weight:800;font-size:.7rem}
 .lb{width:100%;border-collapse:collapse;font-size:.95rem}.lb th{color:var(--dim);font-size:.72rem;font-weight:700;text-align:right;padding:.3rem .2rem;letter-spacing:.06em}.lb th:nth-child(2),.lb td:nth-child(2){text-align:left}
 .lb td{padding:.5rem .2rem;border-top:1px solid var(--line);text-align:right}.lb td:first-child{color:var(--dim);width:1.6rem;text-align:left}.lb tr.me td{color:var(--gold);font-weight:800}.lb td b{font-size:1.1rem}
 .ap{padding:.45rem 0;border-top:1px solid var(--line)}.ap .apn{font-weight:800;margin-bottom:.2rem}.ap .apn.me{color:var(--gold)}.ap .apc{display:flex;flex-wrap:wrap;gap:.3rem}
@@ -834,7 +839,7 @@ function stRow(e){
   const s = {}; (e.stats||[]).forEach(x => s[x.name] = x);
   const v = k => s[k]?.value, dv = k => s[k]?.displayValue;
   const l10 = (e.stats||[]).find(x => x.name==='Last Ten Games' || x.type==='lasttengames' || x.shortDisplayName==='L10');
-  return { abbr: e.team.abbreviation, logo: e.team.logos?.[0]?.href || '', w: v('wins')||0, l: v('losses')||0, t: v('ties')||0,
+  return { id: e.team.id, abbr: e.team.abbreviation, logo: e.team.logos?.[0]?.href || '', w: v('wins')||0, l: v('losses')||0, t: v('ties')||0,
     pct: v('winPercent')||0, seed: v('playoffSeed'), gb: dv('gamesBehind'), strk: dv('streak'), diff: dv('differential') || dv('pointDifferential'),
     l10: l10?.displayValue || '' };
 }
@@ -1154,7 +1159,64 @@ function panelNBAStand(){
   // your conference first (West by default)
   const mineC = c => c.rows.some(r => myAbbr('basketball/nba', r.abbr)) ? 2 : /west/i.test(c.name) ? 1 : 0;
   const confs = [...D.nbaStand].sort((x,y) => mineC(y) - mineC(x));
-  return { title:'NBA Standings', html:`<div class="confs">${confs.map(box).join('')}</div>` };
+  // strength of schedule for the race your team is in, right under your conference
+  return { title:'NBA Standings', html:`<div class="confs">${confs.map((c, i) => box(c) + (i === 0 && PHONE ? sosBox(c) : '')).join('')}</div>` };
+}
+
+/* ---------------- NBA strength of schedule: next 5 or 10 ----------------
+   For your team and every team within 3 games of it in the conference: the next N opponents'
+   combined win %, home games, and back-to-backs. Built from each team's ESPN schedule plus
+   the standings we already load. */
+let SOSN = 10; const SOSOPEN = {}; D.sos = {};
+const gbBetween = (a, b) => Math.abs((a.w - b.w) + (b.l - a.l)) / 2;
+const pct3 = v => v == null ? '–' : (v >= 1 ? '1.000' : v.toFixed(3).replace(/^0/, ''));
+function sosTeams(conf){
+  const me = conf.rows.find(r => myAbbr('basketball/nba', r.abbr)) || (hasWolves() ? conf.rows.find(r => r.abbr === 'MIN') : null);
+  if (!me) return [];
+  return conf.rows.filter(r => r === me || gbBetween(r, me) <= 3).map(r => ({ r, me: r === me }));
+}
+async function loadSOS(list){
+  const todo = list.filter(({ r }) => r.id && !(D.sos[r.abbr] && Date.now() - D.sos[r.abbr].at < 3600e3) && !D.sos[r.abbr]?.loading);
+  if (!todo.length) return;
+  todo.forEach(({ r }) => D.sos[r.abbr] = { ...(D.sos[r.abbr] || {}), loading: true });
+  await Promise.all(todo.map(async ({ r }) => {
+    try {
+      const j = await getJSON(`${API}basketball/nba/teams/${r.id}/schedule`);
+      const games = (j.events || []).map(ev => { const c = ev.competitions?.[0] || {}; const cs = c.competitors || [];
+        const mine = cs.find(x => String(x.team?.id) === String(r.id)), op = cs.find(x => x !== mine);
+        return { date: ev.date, done: c.status?.type?.state === 'post' || c.status?.type?.completed, home: mine?.homeAway === 'home', opp: op?.team?.abbreviation || '' }; })
+        .filter(g => g.opp).sort((a, b) => new Date(a.date) - new Date(b.date));
+      D.sos[r.abbr] = { at: Date.now(), games };
+    } catch(e){ D.sos[r.abbr] = { at: Date.now(), games: null }; }
+  }));
+  if (mTab === 'nba' && !mDetail) mobileRender(true);
+}
+function sosCalc(abbr, n){
+  const all = D.sos[abbr]?.games; if (!all) return null;
+  const pctOf = {}; (D.nbaStand || []).forEach(c => c.rows.forEach(r => pctOf[r.abbr] = r.pct));
+  const now = Date.now();
+  const lastDone = [...all].reverse().find(g => g.done && new Date(g.date) < now);
+  const up = all.filter(g => !g.done && new Date(g.date) > now - 4 * 3600e3).slice(0, n);
+  let prev = lastDone ? ymd(new Date(lastDone.date)) : null, b2b = 0, sum = 0, k = 0;
+  const rows = up.map(g => { const d = ymd(new Date(g.date)), y = ymd(new Date(new Date(g.date) - 864e5));
+    const isB2B = prev === y; if (isB2B) b2b++; prev = d;
+    const p = pctOf[g.opp]; if (p != null){ sum += p; k++; }
+    return { ...g, p, b2b: isB2B }; });
+  return { n: up.length, opp: k ? sum / k : null, home: up.filter(g => g.home).length, b2b, rows };
+}
+function sosBox(conf){
+  const list = sosTeams(conf); if (!list.length) return '';
+  loadSOS(list);
+  const calc = list.map(x => ({ ...x, c: sosCalc(x.r.abbr, SOSN) }));
+  if (calc.some(x => !x.c)) return `<div class="box sos"><h3>NEXT ${SOSN} SCHEDULE</h3><div class="dim">Loading schedules…</div></div>`;
+  calc.sort((a, b) => (a.c.opp ?? 1) - (b.c.opp ?? 1));
+  const line = x => { const c = x.c, open = SOSOPEN[x.r.abbr];
+    return `<div class="sosl ${x.me ? 'me' : ''}" data-sos="${esc(x.r.abbr)}"><span class="sost">${logoImg(x.r.logo)}${esc(x.r.abbr)}<small>${x.r.w}-${x.r.l}</small></span>
+      <span><b>${pct3(c.opp)}</b><small>opp</small></span><span><b>${c.home}</b><small>home</small></span><span><b>${c.b2b}</b><small>B2B</small></span><i>${open ? '▾' : '›'}</i></div>` +
+      (open ? `<div class="sosx">${c.rows.map(g => `<div><span>${fmt(new Date(g.date), { weekday: 'short', month: 'numeric', day: 'numeric' })}</span><span>${g.home ? 'vs' : '@'} ${esc(g.opp)}</span><span>${pct3(g.p)}</span><span>${g.b2b ? '<em>B2B</em>' : ''}</span></div>`).join('')}</div>` : ''); };
+  return `<div class="box sos"><div class="sosh"><h3>NEXT ${SOSN} SCHEDULE</h3><span><button class="${SOSN === 5 ? 'on' : ''}" data-sosn="5">5</button><button class="${SOSN === 10 ? 'on' : ''}" data-sosn="10">10</button></span></div>
+    <div class="dim" style="font-size:.75rem;margin:-.2rem 0 .4rem">Teams within 3 games, easiest first. Opp = opponents' combined win %. Tap a team for its games.</div>
+    ${calc.map(line).join('')}</div>`;
 }
 
 /* wrestling helpers */
@@ -2196,7 +2258,7 @@ function closeGame(){ mDetail = null; mobileRender(); }
 window.addEventListener('popstate', () => { if (mDetail) closeGame(); });
 document.addEventListener('click', ev => {
   if (!PHONE) return;
-  const t = ev.target.closest('[data-bxs],[data-join],[data-joinno],[data-bet],[data-install],[data-installx],[data-pick],[data-pkdone],[data-pklg],[data-pkt],[data-pkrm],[data-pkshare],[data-pkmn],[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
+  const t = ev.target.closest('[data-sos],[data-sosn],[data-bxs],[data-join],[data-joinno],[data-bet],[data-install],[data-installx],[data-pick],[data-pkdone],[data-pklg],[data-pkt],[data-pkrm],[data-pkshare],[data-pkmn],[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
   if (!t) return;
   if (t.dataset.bet){
     const [id, k, v] = t.dataset.bet.split('|'); const e = findEvent(id); if (!e || e.state !== 'pre') return;
@@ -2206,6 +2268,8 @@ document.addEventListener('click', ev => {
     if (!Object.keys(b.p).length) delete BETS[id];
     saveBets(); pushBet(id); mobileRender(true); return;
   }
+  if (t.dataset.sosn){ SOSN = +t.dataset.sosn; mobileRender(true); return; }
+  if (t.dataset.sos){ SOSOPEN[t.dataset.sos] = !SOSOPEN[t.dataset.sos]; mobileRender(true); return; }
   if (t.dataset.bxs){ const [a, l] = t.dataset.bxs.split('|'); if (BXSORT[a] === l) delete BXSORT[a]; else BXSORT[a] = l; mobileRender(true); return; }
   if (t.hasAttribute('data-join')){ const inp = $('#pkname'); const v = inp?.value || ''; JOIN.val = v; inp?.blur(); joinBoard(v); return; }
   if (t.hasAttribute('data-joinno')){ try { localStorage.setItem('ysNameNo', '1'); } catch(e){} mobileRender(true); return; }
