@@ -1602,11 +1602,14 @@ async function buildQs(e){
   const pairs = [];
   mp.filter(p => p.min >= 24).forEach(a => opp.filter(p => p.min >= 24).forEach(b => ['PTS', 'PTS', 'REB', 'AST'].forEach(k => {   // 3s made ties too often head to head
     if (q2 && q2.p === a && q2.k === k) return;
-    if (a[k] >= PST[k].min && b[k] >= PST[k].min && Math.max(a[k], b[k]) / Math.min(a[k], b[k]) <= 1.25) pairs.push({ a, b, k });
+    // a real toss-up: averages within 10% of each other
+    const gap = Math.max(a[k], b[k]) / Math.min(a[k], b[k]);
+    if (a[k] >= PST[k].min && b[k] >= PST[k].min && gap <= 1.10) pairs.push({ a, b, k, gap });
   })));
-  const tpairs = Object.keys(TST).filter(k => !isNaN(pre('MIN', k)) && !isNaN(pre(op.abbr, k)) && Math.max(pre('MIN', k), pre(op.abbr, k)) / Math.min(pre('MIN', k), pre(op.abbr, k)) <= 1.15);
+  const tpairs = Object.keys(TST).filter(k => !isNaN(pre('MIN', k)) && !isNaN(pre(op.abbr, k)) && Math.max(pre('MIN', k), pre(op.abbr, k)) / Math.min(pre('MIN', k), pre(op.abbr, k)) <= 1.06);
   let h3 = null;
-  if (pairs.length && (!tpairs.length || R() < .7)){ const x = pick(pairs);
+  pairs.sort((x, y) => x.gap - y.gap);
+  if (pairs.length && (!tpairs.length || R() < .7)){ const x = pick(pairs.slice(0, 3));   // one of the three closest matchups
     h3 = { k: 'q3', t: 'h2h', stat: x.k, a: { team: 'MIN', id: x.a.id, who: x.a.who, avg: r1(x.a[x.k]) }, b: { team: op.abbr, id: x.b.id, who: x.b.who, avg: r1(x.b[x.k]) } }; }
   else if (tpairs.length){ const k = pick(tpairs);
     h3 = { k: 'q3', t: 'h2h', stat: k, a: { team: 'MIN', avg: pre('MIN', k) }, b: { team: op.abbr, avg: pre(op.abbr, k) } }; }
@@ -1617,7 +1620,7 @@ async function buildQs(e){
   const wild = [];
   const topA = [...mp].sort((x, y) => y.PTS - x.PTS)[0], topB = [...opp].sort((x, y) => y.PTS - x.PTS)[0];
   const sameAsQ3 = h3 && h3.stat === 'PTS' && (h3.a.who === topA?.who || h3.b.who === topB?.who);
-  if (topA && topB && topA.PTS >= 15 && topB.PTS >= 15 && !sameAsQ3)
+  if (topA && topB && topA.PTS >= 15 && topB.PTS >= 15 && !sameAsQ3 && Math.max(topA.PTS, topB.PTS) / Math.min(topA.PTS, topB.PTS) <= 1.12)
     wild.push({ k: 'q4', t: 'h2h', stat: 'PTS', duel: 1, a: { team: 'MIN', id: topA.id, who: topA.who, avg: r1(topA.PTS) }, b: { team: op.abbr, id: topB.id, who: topB.who, avg: r1(topB.PTS) } });
   wild.push({ k: 'q4', t: 'tech' });
   wild.push({ k: 'q4', t: 'blow', line: 15 });
@@ -1744,7 +1747,8 @@ function qName(q){
   if (q.t === 'h2h'){
     const verb = { PTS: 'scores more points', REB: 'gets more rebounds', AST: 'gets more assists', '3PM': 'makes more 3s' }[q.stat];
     if (q.a.who) return `${q.duel ? 'Star duel: who' : 'Who'} ${verb || 'has more ' + (PST[q.stat] || TST[q.stat]).lab}?`;
-    return `Which team has more ${(PST[q.stat] || TST[q.stat]).lab}?`;
+    return { '3P%': 'Which team shoots better from 3?', REB: 'Which team gets more rebounds?', AST: 'Which team gets more assists?', TO: 'Which team commits more turnovers?',
+      STL: 'Which team gets more steals?', BLK: 'Which team gets more blocks?' }[q.stat] || `Which team has more ${(PST[q.stat] || TST[q.stat]).lab}?`;
   }
   if (q.t === 'pstat') return `${esc(lastName(q.who))} ${PST[q.stat].lab}`;
   if (q.t === 'tstat') return `Wolves ${TST[q.stat].lab}`;
@@ -1770,7 +1774,7 @@ function qNote(q){
   if (q.t === 'blow') return 'either team, any point in the game';
   if (q.t === 'tpts') return `season ${q.avg} a game`;
   if (q.t === 'tstat') return `season ${fmtV(q.avg, q.stat)}`;
-  if (q.t === 'h2h') return `${q.a.team} ${fmtV(q.a.avg, q.stat)} a game vs ${q.b.team} ${fmtV(q.b.avg, q.stat)}`;
+  if (q.t === 'h2h') return q.stat === '3P%' ? `season: ${q.a.team} ${fmtV(q.a.avg, q.stat)}, ${q.b.team} ${fmtV(q.b.avg, q.stat)}` : `${q.a.team} ${fmtV(q.a.avg, q.stat)} a game vs ${q.b.team} ${fmtV(q.b.avg, q.stat)}`;
   return '';
 }
 function qOpts(q){
