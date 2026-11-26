@@ -105,6 +105,7 @@ tr.mn[style] td:first-child{box-shadow:inset .3rem 0 0 var(--gl)}
 .g .row img{width:1.7rem;height:1.7rem;object-fit:contain}
 .g .row .ab{font-weight:700;width:3.4rem}
 .g .row .rc{color:var(--dim);font-size:.85rem;flex:1}
+.g .row .lgw{position:relative;display:inline-flex;flex:none}.g .row .rk{position:absolute;right:-.4rem;bottom:-.3rem;font-style:normal;font-size:.6rem;font-weight:800;background:var(--gold);color:#000;border-radius:.5rem;padding:0 .22rem;line-height:1.25}
 .g .row .sc{font-weight:800;font-size:1.35rem;min-width:2.2rem;text-align:right}
 .g .row.lose{opacity:.55}
 .g .row .sc.od{font-weight:600;font-size:.8rem;color:var(--dim);min-width:0;white-space:nowrap}
@@ -1091,7 +1092,7 @@ function gameTile(e, mnIds, path){
     const win = post && !lose && e.teams.some(o => o !== x && +o.score < +x.score);
     const has = live && e.sit?.possession && e.sit.possession === x.id;
     const sc = pre ? `<span class="sc od">${esc(odd[x.id] || '')}</span>` : `<span class="sc tnum">${esc(x.score)}</span>`;
-    return `<div class="row ${lose ? 'lose' : ''} ${win ? 'win' : ''} ${has ? 'has' : ''}">${logoImg(x.logo)}<span class="ab">${x.rank ? '<small>'+x.rank+'</small> ' : ''}${esc(x.abbr)}</span><span class="rc">${hideRec.has(x.id) ? '' : esc(x.rec)}${win ? '<span class="wn">◀</span>' : ''}</span>${has ? '<span class="ball"></span>' : ''}${ups && x.winner ? `<span class="ups">UPSET +${ups}</span>` : ''}${sc}</div>`;
+    return `<div class="row ${lose ? 'lose' : ''} ${win ? 'win' : ''} ${has ? 'has' : ''}">${x.rank ? `<span class="lgw">${logoImg(x.logo)}<i class="rk">${x.rank}</i></span>` : logoImg(x.logo)}<span class="ab">${esc(x.abbr)}</span><span class="rc">${hideRec.has(x.id) ? '' : esc(x.rec)}${win ? '<span class="wn">◀</span>' : ''}</span>${has ? '<span class="ball"></span>' : ''}${ups && x.winner ? `<span class="ups">UPSET +${ups}</span>` : ''}${sc}</div>`;
   }).join('');
   let st;
   if (pre){
