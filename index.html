@@ -1161,7 +1161,7 @@ function panelNBAStand(){
   const mineC = c => c.rows.some(r => myAbbr('basketball/nba', r.abbr)) ? 2 : /west/i.test(c.name) ? 1 : 0;
   const confs = [...D.nbaStand].sort((x,y) => mineC(y) - mineC(x));
   // strength of schedule for the race your team is in, right under your conference
-  return { title:'NBA Standings', html:`<div class="confs">${confs.map((c, i) => box(c) + (i === 0 && PHONE ? sosBox(c) : '')).join('')}</div>` };
+  return { title:'NBA Standings', html:`<div class="confs">${confs.map((c, i) => box(c) + (PHONE ? sosBox(c) : '')).join('')}</div>` };
 }
 
 /* ---------------- NBA strength of schedule: next 5 or 10 ----------------
@@ -1171,13 +1171,19 @@ function panelNBAStand(){
 let SOSN = 10; const SOSOPEN = {}; D.sos = {};
 const gbBetween = (a, b) => Math.abs((a.w - b.w) + (b.l - a.l)) / 2;
 const pct3 = v => v == null ? '–' : (v >= 1 ? '1.000' : v.toFixed(3).replace(/^0/, ''));
-function sosTeams(conf){
-  const me = conf.rows.find(r => myAbbr('basketball/nba', r.abbr)) || (hasWolves() ? conf.rows.find(r => r.abbr === 'MIN') : null);
-  if (!me) return [];
-  // everyone ahead of you, plus the next two behind if they're within 5 games
-  const i = conf.rows.indexOf(me);
-  const behind = conf.rows.slice(i + 1).filter(r => gbBetween(r, me) <= 5).slice(0, 2);
-  return [...conf.rows.slice(0, i + 1), ...behind].map(r => ({ r, me: r === me }));
+// one race per team you picked: teams within 5 games ahead, plus the next two behind within 5.
+// Races that touch in the same conference merge into one panel. A team with nobody close gets none.
+function sosGroups(conf){
+  const rows = conf.rows;
+  const mine = rows.filter(r => myAbbr('basketball/nba', r.abbr) || (hasWolves() && r.abbr === 'MIN'));
+  // at most 3 races per conference: your three highest-standing teams
+  const wins = mine.slice(0, 3).map(me => { const i = rows.indexOf(me);
+    const ahead = rows.slice(0, i).filter(r => gbBetween(r, me) <= 5), behind = rows.slice(i + 1).filter(r => gbBetween(r, me) <= 5).slice(0, 2);
+    if (!ahead.length && !behind.length) return null;
+    return [ahead.length ? rows.indexOf(ahead[0]) : i, behind.length ? rows.indexOf(behind[behind.length - 1]) : i]; })
+    .filter(Boolean).sort((a, b) => a[0] - b[0]);
+  const merged = []; wins.forEach(w => { const m = merged[merged.length - 1]; if (m && w[0] <= m[1] + 1) m[1] = Math.max(m[1], w[1]); else merged.push([...w]); });
+  return merged.map(([lo, hi]) => rows.slice(lo, hi + 1).map(r => ({ r, me: mine.includes(r) })));
 }
 async function loadSOS(list){
   const todo = list.filter(({ r }) => r.id && !(D.sos[r.abbr] && Date.now() - D.sos[r.abbr].at < 3600e3) && !D.sos[r.abbr]?.loading);
@@ -1208,8 +1214,8 @@ function sosCalc(abbr, n){
     return { ...g, p, b2b: isB2B }; });
   return { n: up.length, opp: k ? sum / k : null, home: up.filter(g => g.home).length, b2b, rows };
 }
-function sosBox(conf){
-  const list = sosTeams(conf); if (!list.length) return '';
+function sosBox(conf){ return sosGroups(conf).map(sosPanel).join(''); }
+function sosPanel(list){
   loadSOS(list);
   const calc = list.map(x => ({ ...x, c: sosCalc(x.r.abbr, SOSN) }));
   if (calc.some(x => !x.c)) return `<div class="box sos"><h3>STRENGTH OF SCHEDULE</h3><div class="dim">Loading schedules…</div></div>`;
@@ -1224,7 +1230,7 @@ function sosBox(conf){
     <div class="sosh"><span><button class="${SOSN === 5 ? 'on' : ''}" data-sosn="5">Next 5</button><button class="${SOSN === 10 ? 'on' : ''}" data-sosn="10">Next 10</button></span><small class="dim">Tap a team for its games</small></div>
     <div class="sosl soshd"><span></span><span>OPP WIN %</span><span>HOME</span><span>B2B</span><i></i></div>
     ${calc.map(line).join('')}
-    <div class="dim" style="font-size:.72rem;margin-top:.4rem">Teams ahead of you plus the next two behind. <span class="easy">Green</span> = easiest stretch, <span class="hard">red</span> = hardest.</div></div>`;
+    <div class="dim" style="font-size:.72rem;margin-top:.4rem">Teams within 5 games ahead, plus the next two behind. <span class="easy">Green</span> = easiest stretch, <span class="hard">red</span> = hardest.</div></div>`;
 }
 
 /* wrestling helpers */
