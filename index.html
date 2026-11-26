@@ -229,7 +229,7 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .tsHdr{font-weight:800;color:var(--dim);font-size:.9rem;margin-bottom:.2rem}
 .ts{font-size:1.1rem;padding:.24rem 0;border-bottom:1px solid var(--line);font-weight:700}
 .ts .pct{color:var(--gold);font-weight:700;font-size:.9rem}
-.ts .tl{color:var(--dim);font-size:.85rem;font-weight:600}
+.ts .tlab{color:var(--dim);font-size:.85rem;font-weight:600}
 .pf{display:grid;grid-template-columns:1fr 3rem 3rem 3rem;font-size:1.05rem;padding:.2rem 0;border-bottom:1px solid var(--line);text-align:right}
 .pf .lw{text-align:left;font-weight:700}
 .pfh{color:var(--dim);font-size:.8rem;border:0}
@@ -1254,7 +1254,7 @@ function statsBox(sum, e, path){
   const val = (S, k) => esc(S[k] ?? '') + (PCT[k] && S[PCT[k]] != null ? ` <small class="pct">${esc(S[PCT[k]])}%</small>` : '');
   const short = k => k.replace('3rd down efficiency','3rd down').replace('Red Zone (Made-Att)','Red zone').replace('Possession','Time of poss.');
   return `<div class="tsHdr"><span>${esc(A.abbr)}</span><span></span><span>${esc(H.abbr)}</span></div>` +
-    keys.map(k => `<div class="ts tnum"><span>${val(A.s, k)}</span><span class="tl">${esc(short(k))}</span><span>${val(H.s, k)}</span></div>`).join('');
+    keys.map(k => `<div class="ts tnum"><span>${val(A.s, k)}</span><span class="tlab">${esc(short(k))}</span><span>${val(H.s, k)}</span></div>`).join('');
 }
 // top individual performers (basketball / hockey box scores)
 function performersBox(sum, e){
