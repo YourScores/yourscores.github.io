@@ -1596,21 +1596,33 @@ async function buildQs(e){
   const q2 = c2.length ? pick(c2) : null;
   if (q2){ const bl = await blendLine('nba', q2.p.id, q2.k, q2.p[q2.k]);
     qs.push({ k: 'q2', t: 'pstat', team: 'MIN', id: q2.p.id, who: q2.p.who, stat: q2.k, avg: r1(q2.p[q2.k]), l5: bl.l5, line: bl.line }); }
-  // 3) a Wolves team stat
   const st = Object.fromEntries((sum.stats || []).map(x => [x.abbr, x.s])), pre = (a, k) => parseFloat(st[a]?.[TST[k].pre]);
-  const tk = pick(Object.keys(TST).filter(k => !isNaN(pre('MIN', k))));
-  if (tk){ const avg = pre('MIN', tk); qs.push({ k: 'q3', t: 'tstat', team: 'MIN', stat: tk, avg, line: TST[tk].pct ? Math.round(avg) - .5 : half(avg) }); }
-  // 4) head-to-head: two starters with similar numbers, or the two teams in a stat they're close in
+  // 3) head-to-head: two rotation players with similar numbers, or the two teams in a stat they're close in
   const pairs = [];
   mp.filter(p => p.min >= 24).forEach(a => opp.filter(p => p.min >= 24).forEach(b => ['PTS', 'PTS', 'REB', 'AST'].forEach(k => {   // 3s made ties too often head to head
     if (q2 && q2.p === a && q2.k === k) return;
     if (a[k] >= PST[k].min && b[k] >= PST[k].min && Math.max(a[k], b[k]) / Math.min(a[k], b[k]) <= 1.25) pairs.push({ a, b, k });
   })));
-  const tpairs = Object.keys(TST).filter(k => k !== tk && !isNaN(pre('MIN', k)) && !isNaN(pre(op.abbr, k)) && Math.max(pre('MIN', k), pre(op.abbr, k)) / Math.min(pre('MIN', k), pre(op.abbr, k)) <= 1.15);
-  if (pairs.length && (!tpairs.length || R() < .6)){ const x = pick(pairs);
-    qs.push({ k: 'q4', t: 'h2h', stat: x.k, a: { team: 'MIN', who: x.a.who, avg: r1(x.a[x.k]) }, b: { team: op.abbr, who: x.b.who, avg: r1(x.b[x.k]) } }); }
+  const tpairs = Object.keys(TST).filter(k => !isNaN(pre('MIN', k)) && !isNaN(pre(op.abbr, k)) && Math.max(pre('MIN', k), pre(op.abbr, k)) / Math.min(pre('MIN', k), pre(op.abbr, k)) <= 1.15);
+  let h3 = null;
+  if (pairs.length && (!tpairs.length || R() < .7)){ const x = pick(pairs);
+    h3 = { k: 'q3', t: 'h2h', stat: x.k, a: { team: 'MIN', id: x.a.id, who: x.a.who, avg: r1(x.a[x.k]) }, b: { team: op.abbr, id: x.b.id, who: x.b.who, avg: r1(x.b[x.k]) } }; }
   else if (tpairs.length){ const k = pick(tpairs);
-    qs.push({ k: 'q4', t: 'h2h', stat: k, a: { team: 'MIN', avg: pre('MIN', k) }, b: { team: op.abbr, avg: pre(op.abbr, k) } }); }
+    h3 = { k: 'q3', t: 'h2h', stat: k, a: { team: 'MIN', avg: pre('MIN', k) }, b: { team: op.abbr, avg: pre(op.abbr, k) } }; }
+  if (h3) qs.push(h3);
+  else { const tk = pick(Object.keys(TST).filter(k => !isNaN(pre('MIN', k))));
+    if (tk){ const avg = pre('MIN', tk); qs.push({ k: 'q3', t: 'tstat', team: 'MIN', stat: tk, avg, line: TST[tk].pct ? Math.round(avg) - .5 : half(avg) }); } }
+  // 4) wildcard: star duel, a technical, a blowout, or a Wolves scoring line
+  const wild = [];
+  const topA = [...mp].sort((x, y) => y.PTS - x.PTS)[0], topB = [...opp].sort((x, y) => y.PTS - x.PTS)[0];
+  const sameAsQ3 = h3 && h3.stat === 'PTS' && (h3.a.who === topA?.who || h3.b.who === topB?.who);
+  if (topA && topB && topA.PTS >= 15 && topB.PTS >= 15 && !sameAsQ3)
+    wild.push({ k: 'q4', t: 'h2h', stat: 'PTS', duel: 1, a: { team: 'MIN', id: topA.id, who: topA.who, avg: r1(topA.PTS) }, b: { team: op.abbr, id: topB.id, who: topB.who, avg: r1(topB.PTS) } });
+  wild.push({ k: 'q4', t: 'tech' });
+  wild.push({ k: 'q4', t: 'blow', line: 15 });
+  const ppg = parseFloat(st.MIN?.['Points Per Game']);
+  if (!isNaN(ppg)) wild.push({ k: 'q4', t: 'tpts', team: 'MIN', avg: r1(ppg), line: half(ppg) });
+  qs.push(pick(wild));
   return qs;
 }
 /* Vikings: 1) against the spread, 2) a player's yards (QB passing, RB rushing or WR receiving),
@@ -1725,6 +1737,10 @@ function qName(q){
   if (q.t === 'fstat') return `${esc(lastName(q.who))} ${FPS[q.stat].lab}`;
   if (q.t === 'ftstat') return `Vikings ${FTS[q.stat].lab}`;
   if (q.t === 'td') return `${esc(lastName(q.who))} scores a TD`;
+  if (q.t === 'tech') return 'Technical foul in the game';
+  if (q.t === 'blow') return `Anyone leads by ${q.line}+`;
+  if (q.t === 'tpts') return 'Wolves points';
+  if (q.t === 'h2h' && q.duel) return 'Star duel: more points';
   if (q.t === 'pstat') return `${esc(lastName(q.who))} ${PST[q.stat].lab}`;
   if (q.t === 'tstat') return `Wolves ${TST[q.stat].lab}`;
   return `More ${(PST[q.stat] || TST[q.stat]).lab}`;
@@ -1734,6 +1750,9 @@ function qShort(q){
   if (q.t === 'fstat') return `${lastName(q.who)} ${FPS[q.stat].sh}`;
   if (q.t === 'ftstat') return `MIN ${FTS[q.stat].lab}`;
   if (q.t === 'td') return `${lastName(q.who)} TD`;
+  if (q.t === 'tech') return 'Tech';
+  if (q.t === 'blow') return `Lead ${q.line}+`;
+  if (q.t === 'tpts') return 'MIN pts';
   if (q.t === 'pstat') return `${lastName(q.who)} ${PST[q.stat].sh}`;
   if (q.t === 'tstat') return `MIN ${q.stat}`;
   return `More ${q.stat}`;
@@ -1742,13 +1761,16 @@ function qNote(q){
   if (q.t === 'pstat' || q.t === 'fstat') return q.l5 != null ? `season ${q.avg} · last 5 ${q.l5}` : `averages ${q.avg}`;
   if (q.t === 'ftstat') return `season ${q.avg} a game`;
   if (q.t === 'td') return `${q.td} TD${q.td === 1 ? '' : 's'} in ${q.gp} games`;
+  if (q.t === 'tech') return 'either team';
+  if (q.t === 'blow') return 'either team, any point in the game';
+  if (q.t === 'tpts') return `season ${q.avg} a game`;
   if (q.t === 'tstat') return `season ${fmtV(q.avg, q.stat)}`;
   if (q.t === 'h2h') return `${fmtV(q.a.avg, q.stat)} vs ${fmtV(q.b.avg, q.stat)} a game`;
   return '';
 }
 function qOpts(q){
   if (q.t === 'spread') return [['fav', `${q.fav} -${q.spread}`], ['dog', `${q.dog} +${q.spread}`]];
-  if (q.t === 'td') return [['y', 'Yes'], ['n', 'No']];
+  if (q.t === 'td' || q.t === 'tech' || q.t === 'blow') return [['y', 'Yes'], ['n', 'No']];
   if (q.t === 'h2h') return [['a', q.a.who ? lastName(q.a.who) : q.a.team], ['b', q.b.who ? lastName(q.b.who) : q.b.team]];
   const u = q.stat === '3P%' ? '%' : '';
   return [['o', `Over ${q.line}${u}`], ['u', `Under ${q.line}${u}`]];
@@ -1796,6 +1818,14 @@ function gradeQs(e, sum, b){
       if (v === null) return;
       if (v === undefined){ r[k] = 'P'; r[k + 'Txt'] = "Didn't play"; return; }
       r[k] = v === q.line ? 'P' : ((my === 'o') === (v > q.line) ? 'W' : 'L'); r[k + 'Txt'] = q.t === 'fstat' ? `${v} ${FPS[q.stat].sh}` : `${v}`;
+    } else if (q.t === 'tech' || q.t === 'blow'){
+      const T = Object.values(sum?.tsn || {}); if (T.length < 2) return;
+      const v = q.t === 'tech' ? T.reduce((n, t) => n + (parseFloat(t.totalTechnicalFouls ?? t.technicalFouls) || 0), 0) : Math.max(...T.map(t => parseFloat(t.largestLead) || 0));
+      const yes = q.t === 'tech' ? v > 0 : v >= q.line;
+      r[k] = (my === 'y') === yes ? 'W' : 'L'; r[k + 'Txt'] = q.t === 'tech' ? (v ? `${v} tech${v > 1 ? 's' : ''}` : 'No techs') : `Biggest lead ${v}`;
+    } else if (q.t === 'tpts'){
+      const v = +e.teams.find(x => x.abbr === q.team)?.score; if (isNaN(v)) return;
+      r[k] = (my === 'o') === (v > q.line) ? 'W' : 'L'; r[k + 'Txt'] = `${v} pts`;
     } else if (q.t === 'td'){
       const n = tdVal(sum, q);
       if (n === null) return;
@@ -1954,9 +1984,9 @@ function abbrName(who){ const ln = lastName(who); if (ln.includes('-')) return (
 function gridCols(L, teams){
   const dogOf = l => l.dog || (teams || []).find(t => t.abbr !== l.fav)?.abbr || 'DOG';
   if (L.qs) return L.qs.map(q => ({ k: q.k,
-    head: q.t === 'spread' ? 'ATS' : (q.t === 'pstat' || q.t === 'fstat' || q.t === 'td') ? abbrName(q.who) : (q.t === 'tstat' || q.t === 'ftstat') ? 'MIN' : 'MORE',
-    sub: q.t === 'spread' ? `${q.fav} -${q.spread}` : q.t === 'pstat' ? `${PST[q.stat].sh} ${q.line}` : q.t === 'fstat' ? `${FPS[q.stat].sh} ${q.line}` : q.t === 'ftstat' ? `${q.stat.toLowerCase()} ${q.line}` : q.t === 'td' ? 'TD?' : q.t === 'tstat' ? `${q.stat} ${q.line}` : q.stat,
-    cell: v => q.t === 'spread' ? (v === 'fav' ? q.fav : q.dog) : q.t === 'td' ? (v === 'y' ? 'YES' : 'NO') : q.t === 'h2h' ? (v === 'a' ? (q.a.who ? abbrName(q.a.who) : q.a.team) : (q.b.who ? abbrName(q.b.who) : q.b.team)) : v.toUpperCase(),
+    head: q.t === 'spread' ? 'ATS' : (q.t === 'pstat' || q.t === 'fstat' || q.t === 'td') ? abbrName(q.who) : (q.t === 'tstat' || q.t === 'ftstat' || q.t === 'tpts') ? 'MIN' : q.t === 'tech' ? 'TECH' : q.t === 'blow' ? 'LEAD' : 'MORE',
+    sub: q.t === 'spread' ? `${q.fav} -${q.spread}` : q.t === 'pstat' ? `${PST[q.stat].sh} ${q.line}` : q.t === 'fstat' ? `${FPS[q.stat].sh} ${q.line}` : q.t === 'ftstat' ? `${q.stat.toLowerCase()} ${q.line}` : q.t === 'td' ? 'TD?' : q.t === 'tech' ? 'any?' : q.t === 'blow' ? `${q.line}+?` : q.t === 'tpts' ? `pts ${q.line}` : q.t === 'tstat' ? `${q.stat} ${q.line}` : q.stat,
+    cell: v => q.t === 'spread' ? (v === 'fav' ? q.fav : q.dog) : (q.t === 'td' || q.t === 'tech' || q.t === 'blow') ? (v === 'y' ? 'YES' : 'NO') : q.t === 'h2h' ? (v === 'a' ? (q.a.who ? abbrName(q.a.who) : q.a.team) : (q.b.who ? abbrName(q.b.who) : q.b.team)) : v.toUpperCase(),
     diff: () => '' }));
   const cols = [];
   if (L.fav && L.spread != null) cols.push({ k: 'spread', head: 'ATS', sub: `${L.fav} -${L.spread}`,
