@@ -1568,7 +1568,7 @@ const PST = { PTS: { lab: 'points', sh: 'pts', min: 10 }, REB: { lab: 'rebounds'
 const TST = { '3P%': { pre: 'Three Point %', post: '3PT', lab: '3-point %', pct: 1 }, REB: { pre: 'Rebounds Per Game', post: 'Rebounds', lab: 'rebounds' },
   AST: { pre: 'Assists Per Game', post: 'Assists', lab: 'assists' }, TO: { pre: 'Total Turnovers Per Game', post: 'Total Turnovers', lab: 'turnovers' },
   STL: { pre: 'Steals Per Game', post: 'Steals', lab: 'steals' }, BLK: { pre: 'Blocks Per Game', post: 'Blocks', lab: 'blocks' } };
-const lastName = n => (n || '').split(' ').slice(-1)[0];
+const lastName = n => { const p = (n || '').split(' ').filter(x => !/^(jr\.?|sr\.?|ii|iii|iv|v)$/i.test(x)); return p.slice(-1)[0] || n || ''; };
 const r1 = v => Math.round(v * 10) / 10;
 async function rosterAvgs(teamId){
   const r = await getJSON(`${API}basketball/nba/teams/${teamId}/roster`);
@@ -1644,7 +1644,8 @@ async function buildQsNFL(e){
   if (p2) qs.push({ k: 'q2', t: 'fstat', lg: 'nfl', team: 'MIN', id: String(p2.a.id), who: p2.a.shortName, stat: p2.k, avg: r1(p2.avg), line: half(p2.avg) });
   // 3) a team stat
   const pre = Object.fromEntries((sum.stats || []).map(x => [x.abbr, x.s]))['MIN'] || {};
-  const tk = pick(Object.keys(FTS).filter(k => !isNaN(parseFloat(pre[FTS[k].pre]))));
+  const same = { PASSYD: 'PASS', RUSHYD: 'RUSH' }[p2?.k];   // don't ask the team version of question 2
+  const tk = pick(Object.keys(FTS).filter(k => k !== same && !isNaN(parseFloat(pre[FTS[k].pre]))));
   if (tk){ const avg = parseFloat(pre[FTS[tk].pre]); qs.push({ k: 'q3', t: 'ftstat', lg: 'nfl', team: 'MIN', stat: tk, avg: r1(avg), line: half(avg) }); }
   // 4) touchdown: the RB or WR who isn't in question 2, if he scores at all
   const tdc = [[rb, 'rushing'], [wr, 'receiving']].filter(([a]) => a && (!p2 || String(a.id) !== String(p2.a.id)))
@@ -1664,6 +1665,8 @@ function getQs(e){
       let rows = await qsRead(e.id);
       if (rows[0]) return QS[e.id] = rows[0].qs;
       if (e.state !== 'pre'){ delete QS[e.id]; return null; }
+      // NFL lines post a week out and move: lock the Vikings questions 48 hours before kickoff
+      if (e.lg === 'football/nfl' && new Date(e.date) - Date.now() > 48 * 3600e3){ delete QS[e.id]; delete QTRY[e.id]; return null; }
       if (!D.sum[e.id]) await fetchSummary(e, e.lg || 'basketball/nba');
       const qs = e.lg === 'football/nfl' ? await buildQsNFL(e) : await buildQs(e);
       if (!qs){ delete QS[e.id]; return null; }
@@ -1775,7 +1778,9 @@ function picksBoxQ(e, sum){
   const qs = b?.lines?.qs || (Array.isArray(QS[e.id]) ? QS[e.id] : null);
   if (!qs){
     if (!(QS[e.id] instanceof Promise)) getQs(e).then(q => { if (q && mDetail && mDetail.id === e.id) mobileRender(true); });
-    const msg = e.state !== 'pre' ? 'No picks for this game.' : QS[e.id] instanceof Promise ? "Loading tonight's questions…" : "This game's questions post once the spread is out, usually the day before.";
+    const early = e.lg === 'football/nfl' && new Date(e.date) - Date.now() > 48 * 3600e3;
+    const msg = e.state !== 'pre' ? 'No picks for this game.' : QS[e.id] instanceof Promise ? "Loading this game's questions…"
+      : early ? `This game's questions post ${fmt(new Date(new Date(e.date) - 48 * 3600e3), { weekday: 'long', hour: 'numeric', minute: '2-digit' })}, two days before kickoff.` : "This game's questions post once the spread is out, usually the day before.";
     return `<div class="box picks"><h3>YOUR PICKS</h3><div class="dim">${msg}</div>${joinPrompt(true)}</div>`;
   }
   const pre = e.state === 'pre', p = b?.p || {};
