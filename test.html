@@ -1794,7 +1794,7 @@ function panelPicksBody(photo){
   // the next Wolves game, once someone has picked it
   const next = BOARD.filter(r => new Date(r.game_date) > Date.now()).sort((x, y) => new Date(x.game_date) - new Date(y.game_date))[0];
   if (next){ const ev = findEvent(next.game_id);
-    out += `<div class="wl" style="margin-bottom:1rem"><div class="wli" ${ev ? `data-gid="${ev.id}" data-path="basketball/nba"` : ''}><span class="wk"><span class="chip">NEXT</span></span><b>${ev ? esc(ev.teams[0].abbr) + ' @ ' + esc(ev.teams[1].abbr) : 'Wolves'}</b><span class="wr">${whenText(next.game_date)}</span><i>›</i></div></div>` + boardCount(next.game_id); }
+    out += `<div class="wl" style="margin-bottom:1rem"><div class="wli" ${ev ? `data-gid="${ev.id}" data-path="basketball/nba"` : ''}><span class="wk"><span class="chip">UPCOMING</span></span><b>${ev ? esc(ev.teams[0].abbr) + ' @ ' + esc(ev.teams[1].abbr) : 'Wolves'}</b><span class="wr">${whenText(next.game_date)}</span><i>›</i></div></div>` + boardCount(next.game_id); }
   // 3) the photo, then earlier games
   out += photo || '';
   started.slice(1, 5).forEach(id => { out += gameBlock(id, false); });
@@ -1979,7 +1979,7 @@ function mnList(){
   const res = (e, id) => { const { me, op } = sides(e, id); const r = +me.score > +op.score ? 'W' : +me.score < +op.score ? 'L' : 'T';
     return `<span class="${r === 'W' ? 'win' : r === 'L' ? 'loss' : ''}">${r}</span> ${esc(me.score)}-${esc(op.score)}`; };
   const lastTxt = (e, id) => { if (hid(e)) return 'Last: score hidden'; const { op, va } = sides(e, id); return `Last: ${res(e, id)} ${va} ${esc(op.abbr)}`; };
-  const nextTxt = (e, id) => { const { op, va } = sides(e, id); return `Next: ${va} ${esc(op.abbr)} · ${dayShort(e.date)} ${tm(e.date)}`; };
+  const nextTxt = (e, id) => { const { op, va } = sides(e, id); return `Up next: ${va} ${esc(op.abbr)} · ${dayShort(e.date)} ${tm(e.date)}`; };
   const showBtn = e => `<button class="showbtn" data-reveal="${e.id}">Show score</button>`;
   const line = ({ cls = '', sty = '', attrs, logo, lg, name, rec, kind, big, x, sub }) =>
     `<div class="tl ${cls}"${sty} ${attrs}><div class="tlg">${logoImg(logo)}<small>${lg}</small></div>
@@ -2008,7 +2008,7 @@ function mnList(){
       x = `${va} ${esc(op.abbr)} · ${ymd(new Date(e.date)) === today ? 'Today' : 'Yesterday'}`; sub = s.next ? nextTxt(s.next, t.id) : '';
     } else if (s.next){
       e = full(s.next); const { op, va } = sides(e, t.id);
-      kind = chip('NEXT'); big = dayShort(e.date); x = `${va} ${esc(op.abbr)} · ${tm(e.date)}${e.tv ? ' · ' + esc(e.tv) : ''}`; sub = s.last ? lastTxt(s.last, t.id) : '';
+      kind = chip('UPCOMING'); big = dayShort(e.date); x = `${va} ${esc(op.abbr)} · ${tm(e.date)}${e.tv ? ' · ' + esc(e.tv) : ''}`; sub = s.last ? lastTxt(s.last, t.id) : '';
     } else if (s.last){
       e = full(s.last); const { op, va } = sides(e, t.id);
       kind = chip('FINAL'); big = hid(e) ? showBtn(e) : res(e, t.id); x = `${va} ${esc(op.abbr)}`;
@@ -2033,9 +2033,9 @@ function mnList(){
       x = [opp(w.next), wtime(w.next), esc(w.next.tv || '')].filter(Boolean).join(' · '); sub = lastLine;
     } else if (w.last?.result && [today, yest].includes(wd(w.last))){
       kind = chip('FINAL'); big = esc(w.last.result); x = `${opp(w.last)} · ${wd(w.last) === today ? 'Today' : 'Yesterday'}`;
-      sub = w.next ? `Next: ${opp(w.next)} · ${dayShort(wrestDate(w.next))} ${wtime(w.next)}` : '';
+      sub = w.next ? `Up next: ${opp(w.next)} · ${dayShort(wrestDate(w.next))} ${wtime(w.next)}` : '';
     } else if (w.next){
-      kind = chip('NEXT'); big = dayShort(wrestDate(w.next)); x = [opp(w.next), wtime(w.next), esc(w.next.tv || '')].filter(Boolean).join(' · '); sub = lastLine;
+      kind = chip('UPCOMING'); big = dayShort(wrestDate(w.next)); x = [opp(w.next), wtime(w.next), esc(w.next.tv || '')].filter(Boolean).join(' · '); sub = lastLine;
     } else { kind = chip('FINAL'); big = esc(w.last.result || ''); x = opp(w.last); }
     big = big.replace(/^([WL])\b/, (m, r) => `<span class="${r === 'W' ? 'win' : 'loss'}">${r}</span>`);
     const rk = wrestRank();
