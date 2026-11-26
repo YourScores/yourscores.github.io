@@ -25,6 +25,13 @@ jobs:
         run: node scripts/wrestling.mjs
       - name: Build teams.json (team picker)
         run: node scripts/teams.mjs || true
+      - name: Keep the picks database awake
+        # Supabase pauses a free project after a week with no requests; one small read every run prevents that.
+        # The publishable key is the same public key the app uses.
+        run: |
+          curl -s -o /dev/null -w "picks db: %{http_code}\n" \
+            -H "apikey: sb_publishable_Q6eMyyhmaQdL9vuozoLlUg_Buc5UAEx" \
+            "https://vkwqmnwdzqfmgeelomek.supabase.co/rest/v1/picks?select=game_id&limit=1" || true
       - name: Commit if changed
         run: |
           git config user.name "scoreboard-bot"
