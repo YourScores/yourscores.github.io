@@ -1635,7 +1635,10 @@ async function buildQsNFL(e){
   const raw = await getJSON(`${API}football/nfl/summary?event=${e.id}`);
   const lead = (raw.leaders || []).find(t => t.team?.abbreviation === 'MIN')?.leaders || [];
   const who = name => lead.find(l => l.name === name)?.leaders?.[0]?.athlete;
-  const qb = who('passingYards'), rb = who('rushingYards'), wr = who('receivingYards');
+  // skip anyone the injury report has as out, doubtful, on IR or suspended
+  const hurt = new Set((raw.injuries || []).flatMap(t => (t.injuries || []).filter(x => /out|doubtful|injured|reserve|ir\b|suspend/i.test(x.status || x.type?.description || '')).map(x => String(x.athlete?.id || ''))));
+  const ok = a => a && !hurt.has(String(a.id)) ? a : null;
+  const qb = ok(who('passingYards')), rb = ok(who('rushingYards')), wr = ok(who('receivingYards'));
   const st = {}; await Promise.all([qb, rb, wr].filter(Boolean).map(async a => { try { st[a.id] = await nflSeason(a.id); } catch(err){} }));
   const per = (a, cat) => { const c = st[a?.id]?.[cat]; return c && c.gp > 0 && !isNaN(c.yds) ? c.yds / c.gp : null; };
   // 2) a player's yards
