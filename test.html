@@ -389,7 +389,7 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .wban b{display:block;font-size:1.35rem;letter-spacing:.08em;color:#fff}.wban small{color:#c4c8c8;font-size:.78rem}
 .wphoto{display:block;width:100%;height:auto;border-radius:.8rem;margin:0 0 1rem;border:2px solid #236192}
 .pg{width:100%;border-collapse:collapse;font-size:.92rem}
-.pg th{font-size:.68rem;color:var(--dim);font-weight:800;text-align:center;padding:.15rem .2rem .35rem;letter-spacing:.04em}.pg th small{display:block;font-weight:600;font-size:.66rem;opacity:.8;letter-spacing:0}
+.pg th{text-transform:none;font-size:.68rem;color:var(--dim);font-weight:800;text-align:center;padding:.15rem .2rem .35rem;letter-spacing:.04em}.pg th small{display:block;font-weight:600;font-size:.66rem;opacity:.8;letter-spacing:0}
 .pg td{text-align:center;padding:.45rem .2rem;border-top:1px solid var(--line);font-weight:800}.pg td small{display:block;font-size:.62rem;color:var(--dim);font-weight:600}
 .pg td.n{text-align:left;max-width:6.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pg tr.me td.n{color:var(--gold)}
 .pg td.W{color:#3ddc84}.pg td.L{color:#ff6b6b}.pg td.P{color:var(--dim)}.pg td.pt{color:var(--gold);font-size:1.05rem}
@@ -1696,10 +1696,12 @@ function loadBoard(){
 const gradeRow = r => FINALS[r.game_id] ? (gradePicks(FINALS[r.game_id].e, FINALS[r.game_id].sum, { p: r.picks || {}, lines: r.lines || {} }) || {}) : null;
 function standings(){
   const by = {};
+  const lastId = (Array.isArray(BOARD) ? BOARD : []).filter(r => FINALS[r.game_id]).sort((x, y) => new Date(y.game_date) - new Date(x.game_date))[0]?.game_id;
   (Array.isArray(BOARD) ? BOARD : []).forEach(r => {
     const u = by[r.user_name] || (by[r.user_name] = { name: r.user_name, w: 0, l: 0, p: 0, g: 0 });
     const g = gradeRow(r); if (!g) return;
     u.g++; Object.entries(g).forEach(([k, v]) => { if (k.endsWith('Txt')) return; if (v === 'W') u.w++; else if (v === 'L') u.l++; else if (v === 'P') u.p++; });
+    if (r.game_id === lastId) u.last = Object.entries(g).filter(([k, v]) => !k.endsWith('Txt') && v === 'W').length;
   });
   return Object.values(by).sort((a, b) => b.w - a.w || (b.w / (b.w + b.l || 1)) - (a.w / (a.w + a.l || 1)) || a.l - b.l || a.name.localeCompare(b.name));
 }
@@ -1711,7 +1713,7 @@ function pickLabel(k, v, L, teams){
   return `${pr.who.split(' ').slice(-1)[0]} ${v === 'o' ? 'O' : 'U'} ${pr.line}`;
 }
 // long last names shrink to initials (S. Gilgeous-Alexander -> SGA)
-function abbrName(who){ const ln = lastName(who); if (ln.length <= 9) return ln; return ((who || '')[0] || '') + (ln.match(/[A-Z]/g) || []).join(''); }
+function abbrName(who){ const ln = lastName(who); if (ln.includes('-')) return ((who || '')[0] || '') + (ln.match(/[A-Z]/g) || []).join(''); return ln.length <= 7 ? ln : ln.slice(0, 3); }
 // grid columns for one game: header + line shown once; each cell is just the pick
 function gridCols(L, teams){
   const dogOf = l => l.dog || (teams || []).find(t => t.abbr !== l.fav)?.abbr || 'DOG';
@@ -1785,8 +1787,8 @@ function panelPicksBody(photo){
   // 1) the game that just finished (or is on now), with everyone's results
   if (started[0]) out += gameBlock(started[0], true);
   // 2) season standings
-  out += `<div class="box"><h3>SEASON STANDINGS</h3>` + (st.length ? `<table class="lb"><tr><th></th><th>PLAYER</th><th>PTS</th><th>W–L</th><th>WIN %</th></tr>` +
-    st.map((u, i) => `<tr class="${u.name === PNAME ? 'me' : ''}"><td>${rankOf(st, i)}</td><td>${esc(u.name)}</td><td><b>${u.w}</b></td><td>${u.w}–${u.l}</td><td>${u.w + u.l ? Math.round(100 * u.w / (u.w + u.l)) + '%' : '–'}</td></tr>`).join('') + `</table>`
+  out += `<div class="box"><h3>SEASON STANDINGS</h3>` + (st.length ? `<table class="lb"><tr><th></th><th>PLAYER</th><th>PTS</th><th>LAST</th><th>WIN %</th></tr>` +
+    st.map((u, i) => `<tr class="${u.name === PNAME ? 'me' : ''}"><td>${rankOf(st, i)}</td><td>${esc(u.name)}</td><td><b>${u.w}</b></td><td>${u.last != null ? '+' + u.last : '–'}</td><td>${u.w + u.l ? Math.round(100 * u.w / (u.w + u.l)) + '%' : '–'}</td></tr>`).join('') + `</table>`
     : `<div class="dim">No one is on the board yet.</div>`) +
     `<div class="dim" style="font-size:.78rem;margin-top:.6rem">1 point per correct pick. Pushes don't count. Picks lock at tipoff and everyone's show after.${PNAME ? ` You're on as <b style="color:var(--gold)">${esc(PNAME)}</b>.` : ''}</div></div>`;
   // the next Wolves game, once someone has picked it
