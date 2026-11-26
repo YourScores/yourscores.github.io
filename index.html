@@ -1578,7 +1578,7 @@ async function rosterAvgs(teamId){
     const c = (s.categories || []).find(x => x.name === 'averages'), L = c?.labels || [];
     const row = (c?.statistics || []).slice(-1)[0]; if (!row) return null;
     const v = k => row.stats[L.indexOf(k)];
-    return { who: a.shortName, gp: +v('GP'), min: +v('MIN'), PTS: +v('PTS'), REB: +v('REB'), AST: +v('AST'), '3PM': parseFloat(String(v('3PT')).split('-')[0]) };
+    return { id: String(a.id), who: a.shortName, gp: +v('GP'), min: +v('MIN'), PTS: +v('PTS'), REB: +v('REB'), AST: +v('AST'), '3PM': parseFloat(String(v('3PT')).split('-')[0]) };
   } catch(e){ return null; } }));
   return out.filter(p => p && p.gp >= 4 && p.min >= 20);
 }
@@ -1594,7 +1594,7 @@ async function buildQs(e){
   const c2 = [];
   mp.filter(p => p.min >= 24).forEach(p => Object.keys(PST).forEach(k => { if (p[k] >= PST[k].min) c2.push({ p, k }); if (k === 'PTS' && p.PTS >= 10) c2.push({ p, k }); }));
   const q2 = c2.length ? pick(c2) : null;
-  if (q2) qs.push({ k: 'q2', t: 'pstat', team: 'MIN', who: q2.p.who, stat: q2.k, avg: r1(q2.p[q2.k]), line: half(q2.p[q2.k]) });
+  if (q2) qs.push({ k: 'q2', t: 'pstat', team: 'MIN', id: q2.p.id, who: q2.p.who, stat: q2.k, avg: r1(q2.p[q2.k]), line: half(q2.p[q2.k]) });
   // 3) a Wolves team stat
   const st = Object.fromEntries((sum.stats || []).map(x => [x.abbr, x.s])), pre = (a, k) => parseFloat(st[a]?.[TST[k].pre]);
   const tk = pick(Object.keys(TST).filter(k => !isNaN(pre('MIN', k))));
@@ -1656,6 +1656,36 @@ async function buildQsNFL(e){
   const p4 = tdc.length ? pick(tdc) : null;
   if (p4) qs.push({ k: 'q4', t: 'td', lg: 'nfl', team: 'MIN', id: String(p4.a.id), who: p4.a.shortName, td: p4.td, gp: p4.gp });
   return qs;
+}
+/* Hit rates from ESPN game logs: how often a player cleared this line in his last 5 games played */
+const GLOG = {};   // 'lg|id' -> [{ date, s: { statName: value } }] newest first, or 'loading' / 'none'
+async function loadLog(lg, id){
+  const key = lg + '|' + id; if (GLOG[key]) return; GLOG[key] = 'loading';
+  try {
+    const g = await getJSON(`https://site.web.api.espn.com/apis/common/v3/sports/${LGPATH[lg]}/athletes/${id}/gamelog`);
+    const names = g.names || [];
+    const reg = (g.seasonTypes || []).find(t => /regular/i.test(t.displayName || '')) || (g.seasonTypes || [])[0];
+    const rows = (reg?.categories || []).flatMap(c => c.events || []).map(ev => ({ date: g.events?.[ev.eventId]?.gameDate || '', s: Object.fromEntries(names.map((n, i) => [n, ev.stats?.[i]])) }));
+    rows.sort((a, b) => new Date(b.date) - new Date(a.date));
+    GLOG[key] = rows.length ? rows : 'none';
+  } catch(e){ GLOG[key] = 'none'; }
+}
+const num = v => { const x = parseFloat(String(v ?? '').split('-')[0].replace(/,/g, '')); return isNaN(x) ? 0 : x; };
+const LOGSTAT = { PTS: s => num(s.points), REB: s => num(s.totalRebounds), AST: s => num(s.assists), '3PM': s => num(s['threePointFieldGoalsMade-threePointFieldGoalsAttempted']),
+  PASSYD: s => num(s.passingYards), RUSHYD: s => num(s.rushingYards), RECYD: s => num(s.receivingYards) };
+// "over in 3 of last 5" / "TD in 2 of last 5"; '' until the log is in
+function hitText(q){
+  if (!q.id || !(q.t === 'pstat' || q.t === 'fstat' || q.t === 'td')) return '';
+  const lg = q.lg || 'nba', log = GLOG[lg + '|' + q.id];
+  if (!Array.isArray(log)) return '';
+  const last = log.slice(0, 5); if (last.length < 3) return '';
+  const hits = q.t === 'td' ? last.filter(g => num(g.s.rushingTouchdowns) + num(g.s.receivingTouchdowns) > 0).length
+    : last.filter(g => LOGSTAT[q.stat]?.(g.s) > q.line).length;
+  return `${q.t === 'td' ? 'TD' : 'over'} in ${hits} of last ${last.length}`;
+}
+function needLogs(qs, redraw){
+  const todo = qs.filter(q => q.id && (q.t === 'pstat' || q.t === 'fstat' || q.t === 'td') && !GLOG[(q.lg || 'nba') + '|' + q.id]);
+  if (todo.length) Promise.all(todo.map(q => loadLog(q.lg || 'nba', q.id))).then(redraw);
 }
 const qsRead = id => fetch(`${SBG}?select=qs&game_id=eq.${id}`, { headers: { apikey: SBK } }).then(r => r.json());
 function getQs(e){
@@ -1788,12 +1818,14 @@ function picksBoxQ(e, sum){
     return `<div class="box picks"><h3>YOUR PICKS</h3><div class="dim">${msg}</div>${joinPrompt(true)}</div>`;
   }
   const pre = e.state === 'pre', p = b?.p || {};
+  if (pre) needLogs(qs, () => { if (mDetail && mDetail.id === e.id) mobileRender(true); });
   let r = null;
   if (e.state === 'post' && b?.p){ r = gradePicks(e, sum, b); if (r && Object.keys(r).length){ b.r = r; saveBets(); } }
   const mark = k => r?.[k] ? `<span class="pkres ${r[k]}">${r[k] === 'W' ? '✓' : r[k] === 'L' ? '✗' : 'Push'}</span>` : '';
   const rows = qs.map(q => {
     const [a, bb] = qOpts(q).map(([v, label]) => `<button class="pkb ${p[q.k] === v ? 'on' : ''}" ${pre ? `data-bet="${e.id}|${q.k}|${v}"` : 'disabled'}>${esc(label)}</button>`);
-    const note = r?.[q.k + 'Txt'] || qNote(q);
+    const ht = pre ? hitText(q) : '';
+    const note = r?.[q.k + 'Txt'] || [qNote(q), ht].filter(Boolean).join(' · ');
     return `<div class="pkrow"><div class="pkn">${qName(q)}${note ? `<small>${esc(note)}</small>` : ''}</div><div class="pkbs">${a}${bb}</div>${mark(q.k)}</div>`;
   });
   const made = Object.keys(p).length, rec = picksRecord();
@@ -2478,5 +2510,7 @@ async function boot(){
 }
 boot();
 </script>
+<!-- visit counts: privacy-friendly, no cookies (goatcounter.com) -->
+<script data-goatcounter="https://yourscores.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
