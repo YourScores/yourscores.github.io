@@ -1572,7 +1572,8 @@ const lastName = n => { const p = (n || '').split(' ').filter(x => !/^(jr\.?|sr\
 const r1 = v => Math.round(v * 10) / 10;
 async function rosterAvgs(teamId){
   const r = await getJSON(`${API}basketball/nba/teams/${teamId}/roster`);
-  const ath = (r.athletes || []).filter(a => !(a.injuries || []).some(i => /out/i.test(i.status || '')));
+  // skip anyone on the injury report: out, doubtful, questionable or day-to-day
+  const ath = (r.athletes || []).filter(a => !(a.injuries || []).some(i => /out|doubt|question|day|injured|suspend/i.test(i.status || '')));
   const out = await Promise.all(ath.map(async a => { try {
     const s = await getJSON(`https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${a.id}/stats`);
     const c = (s.categories || []).find(x => x.name === 'averages'), L = c?.labels || [];
@@ -1649,7 +1650,7 @@ async function buildQsNFL(e){
   const lead = (raw.leaders || []).find(t => t.team?.abbreviation === 'MIN')?.leaders || [];
   const who = name => lead.find(l => l.name === name)?.leaders?.[0]?.athlete;
   // skip anyone the injury report has as out, doubtful, on IR or suspended
-  const hurt = new Set((raw.injuries || []).flatMap(t => (t.injuries || []).filter(x => /out|doubtful|injured|reserve|ir\b|suspend/i.test(x.status || x.type?.description || '')).map(x => String(x.athlete?.id || ''))));
+  const hurt = new Set((raw.injuries || []).flatMap(t => (t.injuries || []).filter(x => /out|doubt|question|day|injured|reserve|ir\b|suspend/i.test(x.status || x.type?.description || '')).map(x => String(x.athlete?.id || ''))));
   const ok = a => a && !hurt.has(String(a.id)) ? a : null;
   const qb = ok(who('passingYards')), rb = ok(who('rushingYards')), wr = ok(who('receivingYards'));
   const st = {}; await Promise.all([qb, rb, wr].filter(Boolean).map(async a => { try { st[a.id] = await nflSeason(a.id); } catch(err){} }));
