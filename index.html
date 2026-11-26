@@ -1594,7 +1594,8 @@ async function buildQs(e){
   const c2 = [];
   mp.filter(p => p.min >= 24).forEach(p => Object.keys(PST).forEach(k => { if (p[k] >= PST[k].min) c2.push({ p, k }); if (k === 'PTS' && p.PTS >= 10) c2.push({ p, k }); }));
   const q2 = c2.length ? pick(c2) : null;
-  if (q2) qs.push({ k: 'q2', t: 'pstat', team: 'MIN', id: q2.p.id, who: q2.p.who, stat: q2.k, avg: r1(q2.p[q2.k]), line: half(q2.p[q2.k]) });
+  if (q2){ const bl = await blendLine('nba', q2.p.id, q2.k, q2.p[q2.k]);
+    qs.push({ k: 'q2', t: 'pstat', team: 'MIN', id: q2.p.id, who: q2.p.who, stat: q2.k, avg: r1(q2.p[q2.k]), l5: bl.l5, line: bl.line }); }
   // 3) a Wolves team stat
   const st = Object.fromEntries((sum.stats || []).map(x => [x.abbr, x.s])), pre = (a, k) => parseFloat(st[a]?.[TST[k].pre]);
   const tk = pick(Object.keys(TST).filter(k => !isNaN(pre('MIN', k))));
@@ -1644,7 +1645,8 @@ async function buildQsNFL(e){
   // 2) a player's yards
   const c2 = [[qb, 'PASSYD', 'passing'], [rb, 'RUSHYD', 'rushing'], [wr, 'RECYD', 'receiving']].map(([a, k, cat]) => ({ a, k, avg: per(a, cat) })).filter(x => x.a && x.avg != null && x.avg >= 20);
   const p2 = c2.length ? pick(c2) : null;
-  if (p2) qs.push({ k: 'q2', t: 'fstat', lg: 'nfl', team: 'MIN', id: String(p2.a.id), who: p2.a.shortName, stat: p2.k, avg: r1(p2.avg), line: half(p2.avg) });
+  if (p2){ const bl = await blendLine('nfl', String(p2.a.id), p2.k, p2.avg);
+    qs.push({ k: 'q2', t: 'fstat', lg: 'nfl', team: 'MIN', id: String(p2.a.id), who: p2.a.shortName, stat: p2.k, avg: r1(p2.avg), l5: bl.l5, line: bl.line }); }
   // 3) a team stat
   const pre = Object.fromEntries((sum.stats || []).map(x => [x.abbr, x.s]))['MIN'] || {};
   const same = { PASSYD: 'PASS', RUSHYD: 'RUSH' }[p2?.k];   // don't ask the team version of question 2
@@ -1682,6 +1684,14 @@ function hitText(q){
   const hits = q.t === 'td' ? last.filter(g => num(g.s.rushingTouchdowns) + num(g.s.receivingTouchdowns) > 0).length
     : last.filter(g => LOGSTAT[q.stat]?.(g.s) > q.line).length;
   return `${q.t === 'td' ? 'TD' : 'over'} in ${hits} of last ${last.length}`;
+}
+// line = half a point under the blend of season average and last-5 average (recent form counts half)
+async function blendLine(lg, id, stat, season){
+  await loadLog(lg, id);
+  const log = GLOG[lg + '|' + id], last = Array.isArray(log) ? log.slice(0, 5) : [];
+  if (last.length < 3 || !LOGSTAT[stat]) return { line: half(season), l5: null };
+  const l5 = last.reduce((t, g) => t + LOGSTAT[stat](g.s), 0) / last.length;
+  return { line: half((season + l5) / 2), l5: r1(l5) };
 }
 function needLogs(qs, redraw){
   const todo = qs.filter(q => q.id && (q.t === 'pstat' || q.t === 'fstat' || q.t === 'td') && !GLOG[(q.lg || 'nba') + '|' + q.id]);
@@ -1729,7 +1739,7 @@ function qShort(q){
   return `More ${q.stat}`;
 }
 function qNote(q){
-  if (q.t === 'pstat' || q.t === 'fstat') return `averages ${q.avg}`;
+  if (q.t === 'pstat' || q.t === 'fstat') return q.l5 != null ? `season ${q.avg} · last 5 ${q.l5}` : `averages ${q.avg}`;
   if (q.t === 'ftstat') return `season ${q.avg} a game`;
   if (q.t === 'td') return `${q.td} TD${q.td === 1 ? '' : 's'} in ${q.gp} games`;
   if (q.t === 'tstat') return `season ${fmtV(q.avg, q.stat)}`;
