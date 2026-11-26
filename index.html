@@ -388,6 +388,12 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .wban img{width:3.2rem;height:3.2rem;object-fit:contain;flex:none}
 .wban b{display:block;font-size:1.35rem;letter-spacing:.08em;color:#fff}.wban small{color:#c4c8c8;font-size:.78rem}
 .wphoto{display:block;width:100%;height:auto;border-radius:.8rem;margin:0 0 1rem;border:2px solid #236192}
+.pg{width:100%;border-collapse:collapse;font-size:.92rem}
+.pg th{font-size:.68rem;color:var(--dim);font-weight:800;text-align:center;padding:.15rem .2rem .35rem;letter-spacing:.04em}.pg th small{display:block;font-weight:600;font-size:.66rem;opacity:.8;letter-spacing:0}
+.pg td{text-align:center;padding:.45rem .2rem;border-top:1px solid var(--line);font-weight:800}.pg td small{display:block;font-size:.62rem;color:var(--dim);font-weight:600}
+.pg td.n{text-align:left;max-width:6.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pg tr.me td.n{color:var(--gold)}
+.pg td.W{color:#3ddc84}.pg td.L{color:#ff6b6b}.pg td.P{color:var(--dim)}.pg td.pt{color:var(--gold);font-size:1.05rem}
+.wpg .pg td{border-color:#1d3f66}
 .lb{width:100%;border-collapse:collapse;font-size:.95rem}.lb th{color:var(--dim);font-size:.72rem;font-weight:700;text-align:right;padding:.3rem .2rem;letter-spacing:.06em}.lb th:nth-child(2),.lb td:nth-child(2){text-align:left}
 .lb td{padding:.5rem .2rem;border-top:1px solid var(--line);text-align:right}.lb td:first-child{color:var(--dim);width:1.6rem;text-align:left}.lb tr.me td{color:var(--gold);font-weight:800}.lb td b{font-size:1.1rem}
 .ap{padding:.45rem 0;border-top:1px solid var(--line)}.ap .apn{font-weight:800;margin-bottom:.2rem}.ap .apn.me{color:var(--gold)}.ap .apc{display:flex;flex-wrap:wrap;gap:.3rem}
@@ -1353,7 +1359,14 @@ function panelGame(g){
       ${sum?.drive ? `<h3 style="margin-top:1rem">CURRENT DRIVE · ${esc(sum.drive.team)}</h3><div class="big">${esc(sum.drive.desc)}</div>` : ''}
       <div style="margin-top:1rem">${lineScore(e, sum)}</div>
       ${wpNow ? `<h3 style="margin-top:1rem">WIN PROBABILITY</h3>${wpNow}${wpChart(sum, e)}` : ''}</div>`;
-    cols = fb
+    // phone basketball, live: win chance first, then team stats and the box score; last play is a single line
+    const bbLive = PHONE && g.path.includes('basketball');
+    cols = bbLive
+      ? `<div class="box"><h3>WIN PROBABILITY</h3>${wpNow ? wpNow + wpChart(sum, e) : '<div class="dim">Not available yet</div>'}<div style="margin-top:1rem">${lineScore(e, sum)}</div>
+          ${s.lastPlay?.text ? `<div class="dim" style="font-size:.82rem;margin-top:.7rem">Last play: ${esc(s.lastPlay.text.trim())}</div>` : ''}</div>
+         <div class="box"><h3>TEAM STATS</h3>${statsBox(sum, e, g.path)}</div>
+         <div class="box"><h3>BOX SCORE</h3>${boxScoreBox(sum, e.teams[0])}<div style="height:1rem"></div>${boxScoreBox(sum, e.teams[1])}</div>`
+      : fb
       ? `${playBox}<div class="box"><h3>LEADERS</h3>${leadersBox(sum, e)}</div><div class="box"><h3>TEAM STATS</h3>${statsBox(sum, e, g.path)}<h3 style="margin-top:.8rem">SCORING</h3>${scoringBox(sum, 4, true, g.path)}</div>`
       : `${playBox}<div class="box"><h3>LEADERS</h3>${leadersBox(sum, e)}</div><div class="box"><h3>TEAM STATS</h3>${statsBox(sum, e, g.path)}${g.path.includes('basketball') ? '' : `<h3 style="margin-top:.8rem">SCORING</h3>${scoringBox(sum, 4, true, g.path)}`}</div>`;
   } else {
@@ -1367,7 +1380,8 @@ function panelGame(g){
         ? `${c1}<div class="box"><h3>GAME LEADERS</h3>${leadersBox(sum, e, 'Leaders not available')}</div><div class="box"><h3>BOX SCORE</h3>${boxScoreBox(sum, e.teams[0])}<div style="height:1rem"></div>${boxScoreBox(sum, e.teams[1])}</div>`
         : `${c1}<div class="box"><h3>GAME LEADERS</h3>${leadersBox(sum, e, 'Leaders not available')}</div><div class="box">${PHONE && !g.path.includes('basketball') ? `<h3>SCORING</h3>${scoringBox(sum, 0, false, g.path)}<h3 style="margin-top:1rem">TOP PERFORMERS</h3>` : '<h3>TOP PERFORMERS</h3>'}${performersBox(sum, e)}</div>`);
   }
-  if (PHONE) cols = picksBox(e, sum, g.path) + cols;
+  // picks sit on top before tipoff (time to pick); during and after the game they move to the bottom
+  if (PHONE) cols = e.state === 'pre' ? picksBox(e, sum, g.path) + cols : cols + picksBox(e, sum, g.path);
   const isMN = CFG.mnTeams.some(t => e.teams.some(x => x.id === t.id && t.path === g.path));
   const title = (e.state === 'pre' ? (ymd(new Date(e.date)) === ymd(new Date()) ? 'Game Day · ' : 'Preview · ') : live ? 'Live · ' : 'Recap · ') + `${a.abbr} @ ${h.abbr}`;
   return { title, html: `<div class="gs ${isMN ? 'gsMN' : ''}">
@@ -1696,19 +1710,42 @@ function pickLabel(k, v, L, teams){
   const pr = (L.props || [])[+k.slice(1)]; if (!pr) return '';
   return `${pr.who.split(' ').slice(-1)[0]} ${v === 'o' ? 'O' : 'U'} ${pr.line}`;
 }
+// long last names shrink to initials (S. Gilgeous-Alexander -> SGA)
+function abbrName(who){ const ln = lastName(who); if (ln.length <= 9) return ln; return ((who || '')[0] || '') + (ln.match(/[A-Z]/g) || []).join(''); }
+// grid columns for one game: header + line shown once; each cell is just the pick
+function gridCols(L, teams){
+  const dogOf = l => l.dog || (teams || []).find(t => t.abbr !== l.fav)?.abbr || 'DOG';
+  if (L.qs) return L.qs.map(q => ({ k: q.k,
+    head: q.t === 'spread' ? 'ATS' : q.t === 'pstat' ? abbrName(q.who) : q.t === 'tstat' ? 'MIN' : 'MORE',
+    sub: q.t === 'spread' ? `${q.fav} -${q.spread}` : q.t === 'pstat' ? `${PST[q.stat].sh} ${q.line}` : q.t === 'tstat' ? `${q.stat} ${q.line}` : q.stat,
+    cell: v => q.t === 'spread' ? (v === 'fav' ? q.fav : q.dog) : q.t === 'h2h' ? (v === 'a' ? (q.a.who ? abbrName(q.a.who) : q.a.team) : (q.b.who ? abbrName(q.b.who) : q.b.team)) : v.toUpperCase(),
+    diff: () => '' }));
+  const cols = [];
+  if (L.fav && L.spread != null) cols.push({ k: 'spread', head: 'ATS', sub: `${L.fav} -${L.spread}`,
+    cell: (v, rl) => v === 'fav' ? rl.fav : dogOf(rl),
+    diff: (v, rl) => rl.fav === L.fav && rl.spread === L.spread ? '' : ((v === 'fav') ? '-' : '+') + rl.spread });
+  if (L.ou != null) cols.push({ k: 'total', head: 'TOTAL', sub: String(L.ou), cell: v => v.toUpperCase(), diff: (v, rl) => rl.ou === L.ou ? '' : String(rl.ou) });
+  (L.props || []).forEach((pr, i) => cols.push({ k: 'p' + i, head: abbrName(pr.who), sub: `pts ${pr.line}`, cell: v => v.toUpperCase(),
+    diff: (v, rl) => rl.props?.[i]?.line === pr.line ? '' : String(rl.props?.[i]?.line ?? '') }));
+  return cols;
+}
 function allPicksBox(id){
   if (!Array.isArray(BOARD)) return '';
   const rows = BOARD.filter(r => r.game_id === id && Object.keys(r.picks || {}).length);
   if (!rows.length) return '';
   const teams = FINALS[id]?.e.teams || findEvent(id)?.teams;
-  const order = ['spread', 'total', 'p0', 'p1', 'p2', 'q1', 'q2', 'q3', 'q4'];
-  const html = rows.sort((a, b) => (b.user_name === PNAME) - (a.user_name === PNAME) || a.user_name.localeCompare(b.user_name)).map(r => {
-    const g = gradeRow(r) || {}, L = r.lines || {};
-    const chips = order.filter(k => r.picks[k]).map(k => `<span class="${g[k] || ''}">${esc(pickLabel(k, r.picks[k], L, teams))}${g[k] === 'W' ? ' ✓' : g[k] === 'L' ? ' ✗' : g[k] === 'P' ? ' push' : ''}</span>`).join('');
-    const pts = Object.entries(g).filter(([k, v]) => !k.endsWith('Txt') && v === 'W').length;
-    return `<div class="ap"><div class="apn ${r.user_name === PNAME ? 'me' : ''}">${esc(r.user_name)}${FINALS[id] ? ` <span class="dim" style="font-weight:600">· ${pts} pt${pts === 1 ? '' : 's'}</span>` : ''}</div><div class="apc">${chips}</div></div>`;
-  }).join('');
-  return `<div class="box"><h3>EVERYONE'S PICKS</h3>${html}</div>`;
+  // headers use the line most people got
+  const cnt = {}; rows.forEach(r => { const k = JSON.stringify(r.lines || {}); cnt[k] = (cnt[k] || 0) + 1; });
+  const L = JSON.parse(Object.entries(cnt).sort((a, b) => b[1] - a[1])[0][0]);
+  const cols = gridCols(L, teams), fin = !!FINALS[id];
+  const scored = rows.map(r => { const g = gradeRow(r) || {}; return { r, g, pts: Object.entries(g).filter(([k, v]) => !k.endsWith('Txt') && v === 'W').length }; });
+  scored.sort((a, b) => (fin ? b.pts - a.pts : 0) || (b.r.user_name === PNAME) - (a.r.user_name === PNAME) || a.r.user_name.localeCompare(b.r.user_name));
+  const head = `<tr><th></th>${cols.map(c => `<th>${esc(c.head)}<small>${esc(c.sub)}</small></th>`).join('')}${fin ? '<th>PTS</th>' : ''}</tr>`;
+  const body = scored.map(({ r, g, pts }) => `<tr class="${r.user_name === PNAME ? 'me' : ''}"><td class="n">${esc(r.user_name)}</td>${cols.map(c => {
+    const v = r.picks[c.k]; if (!v) return '<td class="dim">–</td>';
+    const d = c.diff(v, r.lines || {});
+    return `<td class="${g[c.k] || ''}">${esc(c.cell(v, r.lines || {}))}${d ? `<small>${esc(d)}</small>` : ''}</td>`; }).join('')}${fin ? `<td class="pt">${pts}</td>` : ''}</tr>`).join('');
+  return `<div class="box"><h3>EVERYONE'S PICKS</h3><table class="pg tnum">${head}${body}</table>${rows.some(r => JSON.stringify(r.lines || {}) !== JSON.stringify(L)) ? '<div class="dim" style="font-size:.72rem;margin-top:.4rem">Small numbers: that player got a different line when they picked.</div>' : ''}</div>`;
 }
 function boardCount(id){
   if (!Array.isArray(BOARD)) return '';
