@@ -1666,7 +1666,7 @@ function getQs(e){
       if (rows[0]) return QS[e.id] = rows[0].qs;
       if (e.state !== 'pre'){ delete QS[e.id]; return null; }
       // NFL lines post a week out and move: lock the Vikings questions 48 hours before kickoff
-      if (e.lg === 'football/nfl' && new Date(e.date) - Date.now() > 48 * 3600e3){ delete QS[e.id]; delete QTRY[e.id]; return null; }
+      if (e.lg === 'football/nfl' && new Date(e.date) - Date.now() > 48 * 3600e3){ delete QS[e.id]; return null; }
       if (!D.sum[e.id]) await fetchSummary(e, e.lg || 'basketball/nba');
       const qs = e.lg === 'football/nfl' ? await buildQsNFL(e) : await buildQs(e);
       if (!qs){ delete QS[e.id]; return null; }
@@ -1777,7 +1777,8 @@ function picksBoxQ(e, sum){
   const b = BETS[e.id] || null;
   const qs = b?.lines?.qs || (Array.isArray(QS[e.id]) ? QS[e.id] : null);
   if (!qs){
-    if (!(QS[e.id] instanceof Promise)) getQs(e).then(q => { if (q && mDetail && mDetail.id === e.id) mobileRender(true); });
+    // ask at most every 5 minutes; redraw once the answer is in (questions, or still waiting)
+    if (!(QS[e.id] instanceof Promise) && !(QTRY[e.id] && Date.now() - QTRY[e.id] < 5 * 60e3)) getQs(e).then(() => { if (mDetail && mDetail.id === e.id) mobileRender(true); });
     const early = e.lg === 'football/nfl' && new Date(e.date) - Date.now() > 48 * 3600e3;
     const msg = e.state !== 'pre' ? 'No picks for this game.' : QS[e.id] instanceof Promise ? "Loading this game's questions…"
       : early ? `This game's questions post ${fmt(new Date(new Date(e.date) - 48 * 3600e3), { weekday: 'long', hour: 'numeric', minute: '2-digit' })}, two days before kickoff.` : "This game's questions post once the spread is out, usually the day before.";
@@ -1853,8 +1854,8 @@ function joinPrompt(inGame){
   if (PNAME || !hasAnyPick()) return '';
   let no = false; try { no = inGame && localStorage.getItem('ysNameNo') === '1'; } catch(e){}
   if (no) return '';
-  return `<div style="margin-top:.7rem;border-top:1px solid var(--line);padding-top:.6rem"><div style="font-weight:700">Join the picks board?</div>
-    <div class="dim" style="font-size:.82rem">Pick a name your friends will know. Your picks lock at tipoff and everyone's show after.</div>
+  return `<div style="${inGame ? 'margin-top:.7rem;border-top:1px solid var(--line);padding-top:.6rem' : ''}"><div style="font-weight:700">Join the picks board?</div>
+    <div class="dim" style="font-size:.82rem">Pick a name your friends will know. Your picks lock when the game starts and everyone's show after.</div>
     <div class="pkjoin"><input id="pkname" maxlength="20" placeholder="Your name" autocomplete="nickname" value="${esc(JOIN.val || '')}"><button data-join>Join</button></div>
     ${JOIN.msg ? `<div class="pkmsg">${esc(JOIN.msg)}</div>` : ''}${inGame ? '<button class="pkno" data-joinno>No thanks</button>' : ''}</div>`;
 }
