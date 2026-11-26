@@ -381,7 +381,7 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .pkjoin button,.pkno{background:var(--gold);color:#111;border:0;border-radius:8px;padding:.55rem .9rem;font-weight:800}.pkno{background:none;color:var(--dim);padding:.3rem 0;font-weight:600;font-size:.8rem}
 .pkmsg{color:var(--gold);font-size:.82rem;margin:.2rem 0}
 .wpg{--gold:#78BE20}
-.wpg .box{background:linear-gradient(180deg,#0f2846,#0C2340);border:1px solid #236192}
+.wpg .box{margin-bottom:1rem;background:linear-gradient(180deg,#0f2846,#0C2340);border:1px solid #236192}
 .wpg .lb td,.wpg .ap{border-color:#1d3f66}
 .wpg .apc span{background:#16365c}
 .wban{display:flex;align-items:center;gap:.8rem;padding:.9rem 1rem;border-radius:.8rem;margin-bottom:1rem;background:linear-gradient(135deg,#0C2340 0%,#236192 100%);border-bottom:3px solid #78BE20}
@@ -1729,7 +1729,7 @@ function gridCols(L, teams){
     diff: (v, rl) => rl.props?.[i]?.line === pr.line ? '' : String(rl.props?.[i]?.line ?? '') }));
   return cols;
 }
-function allPicksBox(id){
+function allPicksBox(id, title){
   if (!Array.isArray(BOARD)) return '';
   const rows = BOARD.filter(r => r.game_id === id && Object.keys(r.picks || {}).length);
   if (!rows.length) return '';
@@ -1745,7 +1745,7 @@ function allPicksBox(id){
     const v = r.picks[c.k]; if (!v) return '<td class="dim">–</td>';
     const d = c.diff(v, r.lines || {});
     return `<td class="${g[c.k] || ''}">${esc(c.cell(v, r.lines || {}))}${d ? `<small>${esc(d)}</small>` : ''}</td>`; }).join('')}${fin ? `<td class="pt">${pts}</td>` : ''}</tr>`).join('');
-  return `<div class="box"><h3>EVERYONE'S PICKS</h3><table class="pg tnum">${head}${body}</table>${rows.some(r => JSON.stringify(r.lines || {}) !== JSON.stringify(L)) ? '<div class="dim" style="font-size:.72rem;margin-top:.4rem">Small numbers: that player got a different line when they picked.</div>' : ''}</div>`;
+  return `<div class="box">${title || "<h3>EVERYONE'S PICKS</h3>"}<table class="pg tnum">${head}${body}</table>${rows.some(r => JSON.stringify(r.lines || {}) !== JSON.stringify(L)) ? '<div class="dim" style="font-size:.72rem;margin-top:.4rem">Small numbers: that player got a different line when they picked.</div>' : ''}</div>`;
 }
 function boardCount(id){
   if (!Array.isArray(BOARD)) return '';
@@ -1758,6 +1758,8 @@ function panelPicks(){
   const photo = PICKS_PHOTO ? `<img class="wphoto" src="${PICKS_PHOTO}" alt="">` : '';
   return `<div class="wpg"><div class="wban">${logoImg('https://a.espncdn.com/i/teamlogos/nba/500/min.png')}<div><b>WOLVES PICKS</b><small>Pick 'em before tipoff · 1 point per correct pick</small></div></div>${panelPicksBody(photo)}</div>`;
 }
+// tied players share a rank (T1 for a tie at the top)
+function rankOf(st, i){ const same = u => u.w === st[i].w && u.l === st[i].l; const first = st.findIndex(same); return (st.filter(same).length > 1 ? 'T' : '') + (first + 1); }
 function panelPicksBody(photo){
   if (!BOARD && !BOARDING) loadBoard().then(() => { if (mTab === 'pk' && !mDetail) mobileRender(true); });
   let out = '';
@@ -1771,13 +1773,20 @@ function panelPicksBody(photo){
     const ev = FINALS[id]?.e || findEvent(id); const [a, h] = ev?.teams || [];
     const title = a ? `${esc(a.abbr)} ${esc(a.score ?? '')} – ${esc(h.score ?? '')} ${esc(h.abbr)}${FINALS[id] ? ' · Final' : ' · In progress'}` : 'Wolves game';
     const hide = ev && findEvent(id) && hid(findEvent(id), 'basketball/nba');
-    return `<div class="sub" style="margin-top:${top ? '0' : '.6rem'}">${top ? (FINALS[id] ? 'Last game · ' : 'Now · ') : ''}${hide ? 'Score hidden' : title}</div>` + (hide ? '' : allPicksBox(id));
+    if (hide) return `<div class="box"><h3>WOLVES GAME · SCORE HIDDEN</h3><div class="dim">Picks show once you reveal the score.</div></div>`;
+    let head = title;
+    if (a && FINALS[id]){ const mn = ev.teams.find(t => t.abbr === 'MIN'), op = ev.teams.find(t => t.abbr !== 'MIN');
+      head = +mn.score > +op.score ? `WOLVES BEAT ${esc(op.abbr)} ${esc(mn.score)}–${esc(op.score)}` : `${esc(op.abbr)} BEAT WOLVES ${esc(op.score)}–${esc(mn.score)}`; }
+    else if (a) head = `NOW · ${esc(a.abbr)} ${esc(a.score ?? '')}–${esc(h.score ?? '')} ${esc(h.abbr)}`;
+    const gd = BOARD.find(r => r.game_id === id)?.game_date;
+    const date = gd ? fmt(new Date(gd), { weekday: 'short', month: 'short', day: 'numeric' }) : '';
+    return allPicksBox(id, `<h3 style="margin-bottom:.1rem">${head}</h3><div class="dim" style="font-size:.78rem;margin-bottom:.5rem">${FINALS[id] ? 'Pick results' : 'Picks'}${date ? ' · ' + date : ''}</div>`);
   };
   // 1) the game that just finished (or is on now), with everyone's results
   if (started[0]) out += gameBlock(started[0], true);
   // 2) season standings
   out += `<div class="box"><h3>SEASON STANDINGS</h3>` + (st.length ? `<table class="lb"><tr><th></th><th>PLAYER</th><th>PTS</th><th>W–L</th><th>WIN %</th></tr>` +
-    st.map((u, i) => `<tr class="${u.name === PNAME ? 'me' : ''}"><td>${i + 1}</td><td>${esc(u.name)}</td><td><b>${u.w}</b></td><td>${u.w}–${u.l}</td><td>${u.w + u.l ? Math.round(100 * u.w / (u.w + u.l)) + '%' : '–'}</td></tr>`).join('') + `</table>`
+    st.map((u, i) => `<tr class="${u.name === PNAME ? 'me' : ''}"><td>${rankOf(st, i)}</td><td>${esc(u.name)}</td><td><b>${u.w}</b></td><td>${u.w}–${u.l}</td><td>${u.w + u.l ? Math.round(100 * u.w / (u.w + u.l)) + '%' : '–'}</td></tr>`).join('') + `</table>`
     : `<div class="dim">No one is on the board yet.</div>`) +
     `<div class="dim" style="font-size:.78rem;margin-top:.6rem">1 point per correct pick. Pushes don't count. Picks lock at tipoff and everyone's show after.${PNAME ? ` You're on as <b style="color:var(--gold)">${esc(PNAME)}</b>.` : ''}</div></div>`;
   // the next Wolves game, once someone has picked it
