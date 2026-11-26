@@ -1765,21 +1765,28 @@ function panelPicksBody(photo){
   if (BOARD === 'err') return out + `<div class="empty">Couldn't load the board. Try again in a minute.</div>`;
   if (!BOARD) return out + `<div class="empty">Loading the board…</div>`;
   const st = standings();
-  out += `<div class="box"><h3>WOLVES PICKS BOARD</h3>` + (st.length ? `<table class="lb"><tr><th></th><th>PLAYER</th><th>PTS</th><th>W–L</th><th>WIN %</th></tr>` +
-    st.map((u, i) => `<tr class="${u.name === PNAME ? 'me' : ''}"><td>${i + 1}</td><td>${esc(u.name)}</td><td><b>${u.w}</b></td><td>${u.w}–${u.l}</td><td>${u.w + u.l ? Math.round(100 * u.w / (u.w + u.l)) + '%' : '–'}</td></tr>`).join('') + `</table>`
-    : `<div class="dim">No one is on the board yet.</div>`) +
-    `<div class="dim" style="font-size:.78rem;margin-top:.6rem">1 point per correct pick. Pushes don't count. Picks lock at tipoff and everyone's show after.${PNAME ? ` You're on as <b style="color:var(--gold)">${esc(PNAME)}</b>.` : ''}</div></div>` + (photo || '');
-  // the next Wolves game, then recent games with everyone's picks
-  const ids = [...new Set(BOARD.map(r => r.game_id))];
-  const next = BOARD.filter(r => new Date(r.game_date) > Date.now()).sort((a, b) => new Date(a.game_date) - new Date(b.game_date))[0];
-  if (next){ const ev = findEvent(next.game_id);
-    out += `<div class="wl" style="margin-bottom:1rem"><div class="wli" ${ev ? `data-gid="${ev.id}" data-path="basketball/nba"` : ''}><span class="wk"><span class="chip">NEXT</span></span><b>${ev ? esc(ev.teams[0].abbr) + ' @ ' + esc(ev.teams[1].abbr) : 'Wolves'}</b><span class="wr">${whenText(next.game_date)}</span><i>›</i></div></div>` + boardCount(next.game_id); }
-  ids.filter(id => BOARD.some(r => r.game_id === id && new Date(r.game_date) < Date.now())).slice(0, 5).forEach(id => {
+  // games people picked that have tipped off, newest first
+  const started = [...new Set(BOARD.filter(r => new Date(r.game_date) < Date.now()).sort((x, y) => new Date(y.game_date) - new Date(x.game_date)).map(r => r.game_id))];
+  const gameBlock = (id, top) => {
     const ev = FINALS[id]?.e || findEvent(id); const [a, h] = ev?.teams || [];
     const title = a ? `${esc(a.abbr)} ${esc(a.score ?? '')} – ${esc(h.score ?? '')} ${esc(h.abbr)}${FINALS[id] ? ' · Final' : ' · In progress'}` : 'Wolves game';
     const hide = ev && findEvent(id) && hid(findEvent(id), 'basketball/nba');
-    out += `<div class="sub" style="margin-top:.6rem">${hide ? 'Score hidden' : title}</div>` + (hide ? '' : allPicksBox(id));
-  });
+    return `<div class="sub" style="margin-top:${top ? '0' : '.6rem'}">${top ? (FINALS[id] ? 'Last game · ' : 'Now · ') : ''}${hide ? 'Score hidden' : title}</div>` + (hide ? '' : allPicksBox(id));
+  };
+  // 1) the game that just finished (or is on now), with everyone's results
+  if (started[0]) out += gameBlock(started[0], true);
+  // 2) season standings
+  out += `<div class="box"><h3>SEASON STANDINGS</h3>` + (st.length ? `<table class="lb"><tr><th></th><th>PLAYER</th><th>PTS</th><th>W–L</th><th>WIN %</th></tr>` +
+    st.map((u, i) => `<tr class="${u.name === PNAME ? 'me' : ''}"><td>${i + 1}</td><td>${esc(u.name)}</td><td><b>${u.w}</b></td><td>${u.w}–${u.l}</td><td>${u.w + u.l ? Math.round(100 * u.w / (u.w + u.l)) + '%' : '–'}</td></tr>`).join('') + `</table>`
+    : `<div class="dim">No one is on the board yet.</div>`) +
+    `<div class="dim" style="font-size:.78rem;margin-top:.6rem">1 point per correct pick. Pushes don't count. Picks lock at tipoff and everyone's show after.${PNAME ? ` You're on as <b style="color:var(--gold)">${esc(PNAME)}</b>.` : ''}</div></div>`;
+  // the next Wolves game, once someone has picked it
+  const next = BOARD.filter(r => new Date(r.game_date) > Date.now()).sort((x, y) => new Date(x.game_date) - new Date(y.game_date))[0];
+  if (next){ const ev = findEvent(next.game_id);
+    out += `<div class="wl" style="margin-bottom:1rem"><div class="wli" ${ev ? `data-gid="${ev.id}" data-path="basketball/nba"` : ''}><span class="wk"><span class="chip">NEXT</span></span><b>${ev ? esc(ev.teams[0].abbr) + ' @ ' + esc(ev.teams[1].abbr) : 'Wolves'}</b><span class="wr">${whenText(next.game_date)}</span><i>›</i></div></div>` + boardCount(next.game_id); }
+  // 3) the photo, then earlier games
+  out += photo || '';
+  started.slice(1, 5).forEach(id => { out += gameBlock(id, false); });
   return out;
 }
 
