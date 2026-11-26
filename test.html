@@ -383,6 +383,9 @@ tr.cut td{border-bottom:2px dashed var(--line)}
 .pkjoin button,.pkno{background:var(--gold);color:#111;border:0;border-radius:8px;padding:.55rem .9rem;font-weight:800}.pkno{background:none;color:var(--dim);padding:.3rem 0;font-weight:600;font-size:.8rem}
 .pkmsg{color:var(--gold);font-size:.82rem;margin:.2rem 0}
 .wpg{--gold:#78BE20}
+.pksw{display:flex;gap:.4rem;margin-bottom:.7rem}.pksw button{flex:1;background:var(--panel);color:var(--dim);border:0;border-radius:.5rem;padding:.5rem;font-weight:800;font-size:.9rem}.pksw button.on{background:var(--gold);color:#000}
+.wpg.vk{--gold:#FFC62F}.wpg.vk .box{background:linear-gradient(180deg,#3a1d63,#2a1548);border-color:#4F2683}.wpg.vk .wban{background:linear-gradient(135deg,#2a1548 0%,#4F2683 100%);border-bottom-color:#FFC62F}
+.wpg.vk .lb td,.wpg.vk .ap,.wpg.vk .pg td{border-color:#4d3378}
 .wpg .box{margin-bottom:1rem;background:linear-gradient(180deg,#0f2846,#0C2340);border:1px solid #236192}
 .wpg .lb td,.wpg .ap{border-color:#1d3f66}
 .wpg .apc span{background:#16365c}
@@ -761,6 +764,11 @@ async function fetchSummary(e, path){
             rows: (g.athletes || []).filter(a => a.stats?.length).map(a => ({ who: a.athlete?.shortName || '', st: a.stats, starter: !!a.starter })),
             dnp: (g.athletes || []).filter(a => !a.stats?.length).map(a => ({ who: a.athlete?.shortName || '', why: a.reason || 'DNP' })) };
         }).filter(Boolean),
+        // football: passing / rushing / receiving tables per team (for picks grading)
+        fbp: path.startsWith('football') ? Object.fromEntries((s.boxscore?.players || []).map(t => [t.team?.abbreviation, Object.fromEntries((t.statistics || []).map(c => [c.name, { labels: c.labels || [],
+          rows: (c.athletes || []).map(a => ({ id: String(a.athlete?.id || ''), who: a.athlete?.shortName || a.athlete?.displayName || '', st: a.stats || [] })) }]))])) : null,
+        // team stats by stat name too (labels repeat in football, names don't)
+        tsn: Object.fromEntries((s.boxscore?.teams || []).map(t => [t.team?.abbreviation, Object.fromEntries((t.statistics || []).map(x => [x.name, x.displayValue]))])),
         wp: (s.winprobability || []).map(x => x.homeWinPercentage).filter(x => x != null),
         predictor: s.predictor ? { home: parseFloat(s.predictor.homeTeam?.gameProjection), away: parseFloat(s.predictor.awayTeam?.gameProjection) } : null,
         last5: Object.fromEntries((s.lastFiveGames || []).map(t => [t.team?.abbreviation, (t.events || []).map(x => x.gameResult).join('')])),
@@ -1482,7 +1490,11 @@ function panelGame(g){
 let BETS = {};
 try { BETS = JSON.parse(localStorage.getItem('ysPicks') || '{}'); } catch(e){}
 function saveBets(){ try { localStorage.setItem('ysPicks', JSON.stringify(BETS)); } catch(e){} }
-const isPickGame = (e, path) => path === 'basketball/nba' && e?.teams?.some(t => t.abbr === 'MIN');
+// picks games: the Wolves (NBA) and the Vikings (NFL)
+const PICKTEAMS = { 'basketball/nba': { lg: 'nba', name: 'Wolves', up: 'WOLVES', logo: 'https://a.espncdn.com/i/teamlogos/nba/500/min.png', start: 'tipoff' },
+                    'football/nfl':   { lg: 'nfl', name: 'Vikings', up: 'VIKINGS', logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png', start: 'kickoff' } };
+const LGPATH = { nba: 'basketball/nba', nfl: 'football/nfl' };
+const isPickGame = (e, path) => !!PICKTEAMS[path] && e?.teams?.some(t => t.abbr === 'MIN');
 const half = v => { const f = Math.floor(v); return v - f >= .5 ? f + .5 : f - .5; };   // a prop line just under the average, like a book
 function pickLines(e, sum){
   const m = (sum?.odds?.line || '').match(/^([A-Z]{2,4})\s+(-?\d+(?:\.\d+)?)$/);
@@ -1549,7 +1561,7 @@ function picksBox(e, sum, path){
    season average so each one is close to a coin flip. Choices are seeded by the game id. */
 const SBG = 'https://vkwqmnwdzqfmgeelomek.supabase.co/rest/v1/games';
 const NEWQ_FROM = Date.parse('2026-11-27T00:00Z');
-const isNewQ = e => new Date(e.date) >= NEWQ_FROM;
+const isNewQ = e => e.lg === 'football/nfl' || new Date(e.date) >= NEWQ_FROM;
 const QS = {}, QTRY = {};
 function seeded(seed){ let a = seed >>> 0; return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 const PST = { PTS: { lab: 'points', sh: 'pts', min: 10 }, REB: { lab: 'rebounds', sh: 'reb', min: 5 }, AST: { lab: 'assists', sh: 'ast', min: 3.5 }, '3PM': { lab: '3s made', sh: '3s', min: 1.8 } };
@@ -1600,6 +1612,47 @@ async function buildQs(e){
     qs.push({ k: 'q4', t: 'h2h', stat: k, a: { team: 'MIN', avg: pre('MIN', k) }, b: { team: op.abbr, avg: pre(op.abbr, k) } }); }
   return qs;
 }
+/* Vikings: 1) against the spread, 2) a player's yards (QB passing, RB rushing or WR receiving),
+   3) a team stat (total, passing or rushing yards, or points), 4) will a player score a touchdown.
+   Lines sit half a yard/point under the season per-game average. */
+const FPS = { PASSYD: { cat: 'passing', lab: 'passing yards', sh: 'pass yds' }, RUSHYD: { cat: 'rushing', lab: 'rushing yards', sh: 'rush yds' }, RECYD: { cat: 'receiving', lab: 'receiving yards', sh: 'rec yds' } };
+const FTS = { YDS: { pre: 'Total Yards', post: 'totalYards', lab: 'total yards' }, PASS: { pre: 'Yards Passing', post: 'netPassingYards', lab: 'passing yards' },
+  RUSH: { pre: 'Yards Rushing', post: 'rushingYards', lab: 'rushing yards' }, PTS: { pre: 'Points Per Game', post: null, lab: 'points' } };
+async function nflSeason(id){
+  const s = await getJSON(`https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/${id}/stats`);
+  const out = {};
+  (s.categories || []).forEach(c => { const L = c.labels || [], row = (c.statistics || []).slice(-1)[0]?.stats || []; const v = k => parseFloat(String(row[L.indexOf(k)] ?? '').replace(/,/g, ''));
+    out[c.name] = { gp: v('GP'), yds: v('YDS'), td: v('TD') }; });
+  return out;
+}
+async function buildQsNFL(e){
+  const sum = D.sum[e.id];
+  const m = (sum?.odds?.line || '').match(/^([A-Z]{2,4})\s+(-?\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  const R = seeded(+e.id), pick = a => a[Math.floor(R() * a.length)];
+  const qs = [{ k: 'q1', t: 'spread', lg: 'nfl', fav: m[1], dog: e.teams.find(t => t.abbr !== m[1]).abbr, spread: Math.abs(+m[2]) }];
+  // season leaders for the Vikings from the game summary (we need their athlete ids)
+  const raw = await getJSON(`${API}football/nfl/summary?event=${e.id}`);
+  const lead = (raw.leaders || []).find(t => t.team?.abbreviation === 'MIN')?.leaders || [];
+  const who = name => lead.find(l => l.name === name)?.leaders?.[0]?.athlete;
+  const qb = who('passingYards'), rb = who('rushingYards'), wr = who('receivingYards');
+  const st = {}; await Promise.all([qb, rb, wr].filter(Boolean).map(async a => { try { st[a.id] = await nflSeason(a.id); } catch(err){} }));
+  const per = (a, cat) => { const c = st[a?.id]?.[cat]; return c && c.gp > 0 && !isNaN(c.yds) ? c.yds / c.gp : null; };
+  // 2) a player's yards
+  const c2 = [[qb, 'PASSYD', 'passing'], [rb, 'RUSHYD', 'rushing'], [wr, 'RECYD', 'receiving']].map(([a, k, cat]) => ({ a, k, avg: per(a, cat) })).filter(x => x.a && x.avg != null && x.avg >= 20);
+  const p2 = c2.length ? pick(c2) : null;
+  if (p2) qs.push({ k: 'q2', t: 'fstat', lg: 'nfl', team: 'MIN', id: String(p2.a.id), who: p2.a.shortName, stat: p2.k, avg: r1(p2.avg), line: half(p2.avg) });
+  // 3) a team stat
+  const pre = Object.fromEntries((sum.stats || []).map(x => [x.abbr, x.s]))['MIN'] || {};
+  const tk = pick(Object.keys(FTS).filter(k => !isNaN(parseFloat(pre[FTS[k].pre]))));
+  if (tk){ const avg = parseFloat(pre[FTS[tk].pre]); qs.push({ k: 'q3', t: 'ftstat', lg: 'nfl', team: 'MIN', stat: tk, avg: r1(avg), line: half(avg) }); }
+  // 4) touchdown: the RB or WR who isn't in question 2, if he scores at all
+  const tdc = [[rb, 'rushing'], [wr, 'receiving']].filter(([a]) => a && (!p2 || String(a.id) !== String(p2.a.id)))
+    .map(([a, cat]) => { const c = st[a.id] || {}; const td = (c.rushing?.td || 0) + (c.receiving?.td || 0), gp = c[cat]?.gp || 0; return { a, td, gp }; }).filter(x => x.td > 0);
+  const p4 = tdc.length ? pick(tdc) : null;
+  if (p4) qs.push({ k: 'q4', t: 'td', lg: 'nfl', team: 'MIN', id: String(p4.a.id), who: p4.a.shortName, td: p4.td, gp: p4.gp });
+  return qs;
+}
 const qsRead = id => fetch(`${SBG}?select=qs&game_id=eq.${id}`, { headers: { apikey: SBK } }).then(r => r.json());
 function getQs(e){
   if (Array.isArray(QS[e.id])) return Promise.resolve(QS[e.id]);
@@ -1611,8 +1664,8 @@ function getQs(e){
       let rows = await qsRead(e.id);
       if (rows[0]) return QS[e.id] = rows[0].qs;
       if (e.state !== 'pre'){ delete QS[e.id]; return null; }
-      if (!D.sum[e.id]) await fetchSummary(e, 'basketball/nba');
-      const qs = await buildQs(e);
+      if (!D.sum[e.id]) await fetchSummary(e, e.lg || 'basketball/nba');
+      const qs = e.lg === 'football/nfl' ? await buildQsNFL(e) : await buildQs(e);
       if (!qs){ delete QS[e.id]; return null; }
       const r = await fetch(SBG, { method: 'POST', headers: { apikey: SBK, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ game_id: e.id, game_date: e.date, qs }) });
       if (!r.ok){ rows = await qsRead(e.id); if (rows[0]) return QS[e.id] = rows[0].qs; delete QS[e.id]; return null; }   // someone else saved first
@@ -1623,24 +1676,33 @@ function getQs(e){
 const fmtV = (v, stat) => TST[stat]?.pct && stat === '3P%' ? v + '%' : v;
 function qName(q){
   if (q.t === 'spread') return 'Spread';
+  if (q.t === 'fstat') return `${esc(lastName(q.who))} ${FPS[q.stat].lab}`;
+  if (q.t === 'ftstat') return `Vikings ${FTS[q.stat].lab}`;
+  if (q.t === 'td') return `${esc(lastName(q.who))} scores a TD`;
   if (q.t === 'pstat') return `${esc(lastName(q.who))} ${PST[q.stat].lab}`;
   if (q.t === 'tstat') return `Wolves ${TST[q.stat].lab}`;
   return `More ${(PST[q.stat] || TST[q.stat]).lab}`;
 }
 function qShort(q){
   if (q.t === 'spread') return 'ATS';
+  if (q.t === 'fstat') return `${lastName(q.who)} ${FPS[q.stat].sh}`;
+  if (q.t === 'ftstat') return `MIN ${FTS[q.stat].lab}`;
+  if (q.t === 'td') return `${lastName(q.who)} TD`;
   if (q.t === 'pstat') return `${lastName(q.who)} ${PST[q.stat].sh}`;
   if (q.t === 'tstat') return `MIN ${q.stat}`;
   return `More ${q.stat}`;
 }
 function qNote(q){
-  if (q.t === 'pstat') return `averages ${q.avg}`;
+  if (q.t === 'pstat' || q.t === 'fstat') return `averages ${q.avg}`;
+  if (q.t === 'ftstat') return `season ${q.avg} a game`;
+  if (q.t === 'td') return `${q.td} TD${q.td === 1 ? '' : 's'} in ${q.gp} games`;
   if (q.t === 'tstat') return `season ${fmtV(q.avg, q.stat)}`;
   if (q.t === 'h2h') return `${fmtV(q.a.avg, q.stat)} vs ${fmtV(q.b.avg, q.stat)} a game`;
   return '';
 }
 function qOpts(q){
   if (q.t === 'spread') return [['fav', `${q.fav} -${q.spread}`], ['dog', `${q.dog} +${q.spread}`]];
+  if (q.t === 'td') return [['y', 'Yes'], ['n', 'No']];
   if (q.t === 'h2h') return [['a', q.a.who ? lastName(q.a.who) : q.a.team], ['b', q.b.who ? lastName(q.b.who) : q.b.team]];
   const u = q.stat === '3P%' ? '%' : '';
   return [['o', `Over ${q.line}${u}`], ['u', `Under ${q.line}${u}`]];
@@ -1656,6 +1718,26 @@ function tVal(sum, team, stat){
   if (stat === '3P%'){ const [m, a] = String(s['3PT'] || '').split('-').map(Number); return a ? r1(100 * m / a) : null; }
   const v = parseFloat(s[TST[stat].post]); return isNaN(v) ? null : v;
 }
+// football box: a player's stat by athlete id (undefined = didn't play), team stats by name
+function fbRow(sum, team, cat, id){ return sum?.fbp?.[team]?.[cat]?.rows?.find(r => r.id === String(id)); }
+function fbVal(sum, team, cat, id, label){ const T = sum?.fbp?.[team]?.[cat]; const r = fbRow(sum, team, cat, id); return r ? parseFloat(String(r.st[T.labels.indexOf(label)] ?? '').replace(/,/g, '')) : null; }
+function fpVal(sum, q){
+  if (!sum?.fbp?.[q.team]) return null;
+  const cat = FPS[q.stat].cat, v = fbVal(sum, q.team, cat, q.id, 'YDS');
+  if (v != null && !isNaN(v)) return v;
+  const any = ['passing', 'rushing', 'receiving', 'fumbles', 'kickReturns', 'puntReturns'].some(c => fbRow(sum, q.team, c, q.id));
+  return any ? 0 : undefined;
+}
+function ftVal(sum, e, q){
+  if (q.stat === 'PTS'){ const t = e.teams.find(x => x.abbr === q.team); return t ? +t.score : null; }
+  const v = parseFloat(String(sum?.tsn?.[q.team]?.[FTS[q.stat].post] ?? '').replace(/,/g, '')); return isNaN(v) ? null : v;
+}
+function tdVal(sum, q){
+  if (!sum?.fbp?.[q.team]) return null;
+  const any = ['passing', 'rushing', 'receiving', 'fumbles', 'kickReturns', 'puntReturns'].some(c => fbRow(sum, q.team, c, q.id));
+  if (!any) return undefined;
+  return ['rushing', 'receiving', 'kickReturns', 'puntReturns'].reduce((n, c) => n + (fbVal(sum, q.team, c, q.id, 'TD') || 0), 0);
+}
 function gradeQs(e, sum, b){
   const sc = Object.fromEntries(e.teams.map(t => [t.abbr, +t.score])), r = {};
   b.lines.qs.forEach(q => {
@@ -1663,6 +1745,16 @@ function gradeQs(e, sum, b){
     if (q.t === 'spread'){
       const margin = sc[q.fav] - sc[q.dog], fc = margin > q.spread;
       r[k] = margin === q.spread ? 'P' : ((my === 'fav') === fc ? 'W' : 'L'); r[k + 'Txt'] = `${q.fav} ${margin >= 0 ? 'won' : 'lost'} by ${Math.abs(margin)}`;
+    } else if (q.t === 'fstat' || q.t === 'ftstat'){
+      const v = q.t === 'fstat' ? fpVal(sum, q) : ftVal(sum, e, q);
+      if (v === null) return;
+      if (v === undefined){ r[k] = 'P'; r[k + 'Txt'] = "Didn't play"; return; }
+      r[k] = v === q.line ? 'P' : ((my === 'o') === (v > q.line) ? 'W' : 'L'); r[k + 'Txt'] = q.t === 'fstat' ? `${v} ${FPS[q.stat].sh}` : `${v}`;
+    } else if (q.t === 'td'){
+      const n = tdVal(sum, q);
+      if (n === null) return;
+      if (n === undefined){ r[k] = 'P'; r[k + 'Txt'] = "Didn't play"; return; }
+      r[k] = (my === 'y') === (n > 0) ? 'W' : 'L'; r[k + 'Txt'] = n ? `${n} TD${n > 1 ? 's' : ''}` : 'No TD';
     } else if (q.t === 'pstat' || q.t === 'tstat'){
       const v = q.t === 'pstat' ? pVal(sum, q.team, q.who, q.stat) : tVal(sum, q.team, q.stat);
       if (v === null) return;
@@ -1696,7 +1788,8 @@ function picksBoxQ(e, sum){
     return `<div class="pkrow"><div class="pkn">${qName(q)}${note ? `<small>${esc(note)}</small>` : ''}</div><div class="pkbs">${a}${bb}</div>${mark(q.k)}</div>`;
   });
   const made = Object.keys(p).length, rec = picksRecord();
-  const head = pre ? (made ? `${made} of ${qs.length} picked · locks at tipoff` : 'Make your picks · locks at tipoff') : e.state === 'in' ? 'Locked · graded after the final' : r ? `This game: ${Object.entries(r).filter(([k, v]) => !k.endsWith('Txt') && v === 'W').length} of ${made}` : 'No picks made for this game';
+  const st0 = PICKTEAMS[e.lg]?.start || 'tipoff';
+  const head = pre ? (made ? `${made} of ${qs.length} picked · locks at ${st0}` : `Make your picks · locks at ${st0}`) : e.state === 'in' ? 'Locked · graded after the final' : r ? `This game: ${Object.entries(r).filter(([k, v]) => !k.endsWith('Txt') && v === 'W').length} of ${made}` : 'No picks made for this game';
   return `<div class="box picks"><h3>YOUR PICKS</h3><div class="pkhead">${head}${rec.w + rec.l ? `<span>Record ${rec.w}–${rec.l}</span>` : ''}</div>${rows.join('')}${joinPrompt(true)}</div>` + (pre ? boardCount(e.id) : allPicksBox(e.id));
 }
 
@@ -1705,7 +1798,11 @@ function picksBoxQ(e, sum){
    after tipoff. Everyone's picks show once the game starts. 1 point per correct pick. */
 const SB = 'https://vkwqmnwdzqfmgeelomek.supabase.co/rest/v1/picks', SBK = 'sb_publishable_Q6eMyyhmaQdL9vuozoLlUg_Buc5UAEx';
 let PNAME = '', JOIN = { msg: '', confirm: '' };
-const hasWolves = () => CFG.mnTeams.some(t => t.path === 'basketball/nba' && (t.abbr === 'MIN' || ['16','min'].includes(String(t.team).toLowerCase())));
+const hasPickTeam = path => CFG.mnTeams.some(t => t.path === path && (t.abbr === 'MIN' || ['16','min'].includes(String(t.team).toLowerCase())));
+const hasWolves = () => hasPickTeam('basketball/nba');
+const pickLgs = () => Object.keys(LGPATH).filter(l => hasPickTeam(LGPATH[l]));
+const hasAnyPick = () => pickLgs().length > 0;
+const rowLg = r => r.lines?.lg || r.lines?.qs?.[0]?.lg || 'nba';
 async function sb(method, q, body){
   const r = await fetch(SB + (q || ''), { method, headers: { apikey: SBK, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }, body: body ? JSON.stringify(body) : undefined });
   if (!r.ok) throw new Error(r.status);
@@ -1748,10 +1845,10 @@ async function joinBoard(raw){
   await pullMine(); BOARDAT = 0; await loadBoard(); mobileRender(true, true);
 }
 function joinPrompt(inGame){
-  if (PNAME || !hasWolves()) return '';
+  if (PNAME || !hasAnyPick()) return '';
   let no = false; try { no = inGame && localStorage.getItem('ysNameNo') === '1'; } catch(e){}
   if (no) return '';
-  return `<div style="margin-top:.7rem;border-top:1px solid var(--line);padding-top:.6rem"><div style="font-weight:700">Join the Wolves picks board?</div>
+  return `<div style="margin-top:.7rem;border-top:1px solid var(--line);padding-top:.6rem"><div style="font-weight:700">Join the picks board?</div>
     <div class="dim" style="font-size:.82rem">Pick a name your friends will know. Your picks lock at tipoff and everyone's show after.</div>
     <div class="pkjoin"><input id="pkname" maxlength="20" placeholder="Your name" autocomplete="nickname" value="${esc(JOIN.val || '')}"><button data-join>Join</button></div>
     ${JOIN.msg ? `<div class="pkmsg">${esc(JOIN.msg)}</div>` : ''}${inGame ? '<button class="pkno" data-joinno>No thanks</button>' : ''}</div>`;
@@ -1770,7 +1867,7 @@ function loadBoard(){
         if (FINALS[id]) return;
         const ev = findEvent(id);
         if (ev && ev.state !== 'post') return;
-        await fetchSummary({ id }, 'basketball/nba');
+        await fetchSummary({ id }, LGPATH[rowLg(rows.find(r => r.game_id === id))] || 'basketball/nba');
         const h = D.sum[id]?.hdr;
         if (h?.state === 'post') FINALS[id] = { e: { id, state: 'post', teams: h.teams }, sum: D.sum[id] };
       }));
@@ -1781,10 +1878,11 @@ function loadBoard(){
   return BOARDING;
 }
 const gradeRow = r => FINALS[r.game_id] ? (gradePicks(FINALS[r.game_id].e, FINALS[r.game_id].sum, { p: r.picks || {}, lines: r.lines || {} }) || {}) : null;
-function standings(){
+function standings(lg){
   const by = {};
-  const lastId = (Array.isArray(BOARD) ? BOARD : []).filter(r => FINALS[r.game_id]).sort((x, y) => new Date(y.game_date) - new Date(x.game_date))[0]?.game_id;
-  (Array.isArray(BOARD) ? BOARD : []).forEach(r => {
+  const rowsL = (Array.isArray(BOARD) ? BOARD : []).filter(r => !lg || rowLg(r) === lg);
+  const lastId = rowsL.filter(r => FINALS[r.game_id]).sort((x, y) => new Date(y.game_date) - new Date(x.game_date))[0]?.game_id;
+  rowsL.forEach(r => {
     const u = by[r.user_name] || (by[r.user_name] = { name: r.user_name, w: 0, l: 0, p: 0, g: 0 });
     const g = gradeRow(r); if (!g) return;
     u.g++; Object.entries(g).forEach(([k, v]) => { if (k.endsWith('Txt')) return; if (v === 'W') u.w++; else if (v === 'L') u.l++; else if (v === 'P') u.p++; });
@@ -1805,9 +1903,9 @@ function abbrName(who){ const ln = lastName(who); if (ln.includes('-')) return (
 function gridCols(L, teams){
   const dogOf = l => l.dog || (teams || []).find(t => t.abbr !== l.fav)?.abbr || 'DOG';
   if (L.qs) return L.qs.map(q => ({ k: q.k,
-    head: q.t === 'spread' ? 'ATS' : q.t === 'pstat' ? abbrName(q.who) : q.t === 'tstat' ? 'MIN' : 'MORE',
-    sub: q.t === 'spread' ? `${q.fav} -${q.spread}` : q.t === 'pstat' ? `${PST[q.stat].sh} ${q.line}` : q.t === 'tstat' ? `${q.stat} ${q.line}` : q.stat,
-    cell: v => q.t === 'spread' ? (v === 'fav' ? q.fav : q.dog) : q.t === 'h2h' ? (v === 'a' ? (q.a.who ? abbrName(q.a.who) : q.a.team) : (q.b.who ? abbrName(q.b.who) : q.b.team)) : v.toUpperCase(),
+    head: q.t === 'spread' ? 'ATS' : (q.t === 'pstat' || q.t === 'fstat' || q.t === 'td') ? abbrName(q.who) : (q.t === 'tstat' || q.t === 'ftstat') ? 'MIN' : 'MORE',
+    sub: q.t === 'spread' ? `${q.fav} -${q.spread}` : q.t === 'pstat' ? `${PST[q.stat].sh} ${q.line}` : q.t === 'fstat' ? `${FPS[q.stat].sh} ${q.line}` : q.t === 'ftstat' ? `${q.stat.toLowerCase()} ${q.line}` : q.t === 'td' ? 'TD?' : q.t === 'tstat' ? `${q.stat} ${q.line}` : q.stat,
+    cell: v => q.t === 'spread' ? (v === 'fav' ? q.fav : q.dog) : q.t === 'td' ? (v === 'y' ? 'YES' : 'NO') : q.t === 'h2h' ? (v === 'a' ? (q.a.who ? abbrName(q.a.who) : q.a.team) : (q.b.who ? abbrName(q.b.who) : q.b.team)) : v.toUpperCase(),
     diff: () => '' }));
   const cols = [];
   if (L.fav && L.spread != null) cols.push({ k: 'spread', head: 'ATS', sub: `${L.fav} -${L.spread}`,
@@ -1839,35 +1937,41 @@ function allPicksBox(id, title){
 function boardCount(id){
   if (!Array.isArray(BOARD)) return '';
   const n = BOARD.filter(r => r.game_id === id && Object.keys(r.picks || {}).length).length;
-  return n ? `<div class="dim" style="font-size:.82rem;margin:-.4rem 0 1rem">${n} ${n === 1 ? 'player has' : 'players have'} picked. Everyone's picks show at tipoff.</div>` : '';
+  return n ? `<div class="dim" style="font-size:.82rem;margin:-.4rem 0 1rem">${n} ${n === 1 ? 'player has' : 'players have'} picked. Everyone's picks show when the game starts.</div>` : '';
 }
 /* Picks tab dressed in Wolves colors: midnight blue, lake blue, aurora green, moonlight grey */
 const PICKS_PHOTO = 'picks-photo.jpg';   // e.g. 'picks-photo.jpg' in the repo; shown in the banner when set
+let PKLG = null;   // which board the Picks tab shows: 'nba' (Wolves) or 'nfl' (Vikings)
 function panelPicks(){
-  const photo = PICKS_PHOTO ? `<img class="wphoto" src="${PICKS_PHOTO}" alt="">` : '';
-  return `<div class="wpg"><div class="wban">${logoImg('https://a.espncdn.com/i/teamlogos/nba/500/min.png')}<div><b>WOLVES PICKS</b><small>Pick 'em before tipoff · 1 point per correct pick</small></div></div>${panelPicksBody(photo)}</div>`;
+  const lgs = pickLgs();
+  if (!lgs.includes(PKLG)){ try { PKLG = localStorage.getItem('ysPkLg'); } catch(e){} if (!lgs.includes(PKLG)) PKLG = lgs[0]; }
+  const P = PICKTEAMS[LGPATH[PKLG]];
+  const sw = lgs.length > 1 ? `<div class="pksw">${lgs.map(l => `<button class="${l === PKLG ? 'on' : ''}" data-pklg2="${l}">${PICKTEAMS[LGPATH[l]].name}</button>`).join('')}</div>` : '';
+  const photo = PKLG === 'nba' && PICKS_PHOTO ? `<img class="wphoto" src="${PICKS_PHOTO}" alt="">` : '';
+  return `<div class="wpg ${PKLG === 'nfl' ? 'vk' : ''}">${sw}<div class="wban">${logoImg(P.logo)}<div><b>${P.up} PICKS</b><small>Pick 'em before ${P.start} · 1 point per correct pick</small></div></div>${panelPicksBody(photo, PKLG)}</div>`;
 }
 // tied players share a rank (T1 for a tie at the top)
 function rankOf(st, i){ const same = u => u.w === st[i].w && u.l === st[i].l; const first = st.findIndex(same); return (st.filter(same).length > 1 ? 'T' : '') + (first + 1); }
-function panelPicksBody(photo){
+function panelPicksBody(photo, lg){
+  const P = PICKTEAMS[LGPATH[lg]], path = LGPATH[lg];
   if (!BOARD && !BOARDING) loadBoard().then(() => { if (mTab === 'pk' && !mDetail) mobileRender(true); });
   let out = '';
   if (!PNAME) out += `<div class="box picks">${joinPrompt(false)}</div>`;
   if (BOARD === 'err') return out + `<div class="empty">Couldn't load the board. Try again in a minute.</div>`;
   if (!BOARD) return out + `<div class="empty">Loading the board…</div>`;
-  const st = standings();
-  // games people picked that have tipped off, newest first
-  const started = [...new Set(BOARD.filter(r => new Date(r.game_date) < Date.now()).sort((x, y) => new Date(y.game_date) - new Date(x.game_date)).map(r => r.game_id))];
+  const st = standings(lg), BL = BOARD.filter(r => rowLg(r) === lg);
+  // games people picked that have started, newest first
+  const started = [...new Set(BL.filter(r => new Date(r.game_date) < Date.now()).sort((x, y) => new Date(y.game_date) - new Date(x.game_date)).map(r => r.game_id))];
   const gameBlock = (id, top) => {
     const ev = FINALS[id]?.e || findEvent(id); const [a, h] = ev?.teams || [];
-    const title = a ? `${esc(a.abbr)} ${esc(a.score ?? '')} – ${esc(h.score ?? '')} ${esc(h.abbr)}${FINALS[id] ? ' · Final' : ' · In progress'}` : 'Wolves game';
-    const hide = ev && findEvent(id) && hid(findEvent(id), 'basketball/nba');
-    if (hide) return `<div class="box"><h3>WOLVES GAME · SCORE HIDDEN</h3><div class="dim">Picks show once you reveal the score.</div></div>`;
+    const title = a ? `${esc(a.abbr)} ${esc(a.score ?? '')} – ${esc(h.score ?? '')} ${esc(h.abbr)}${FINALS[id] ? ' · Final' : ' · In progress'}` : `${P.name} game`;
+    const hide = ev && findEvent(id) && hid(findEvent(id), path);
+    if (hide) return `<div class="box"><h3>${P.up} GAME · SCORE HIDDEN</h3><div class="dim">Picks show once you reveal the score.</div></div>`;
     let head = title;
     if (a && FINALS[id]){ const mn = ev.teams.find(t => t.abbr === 'MIN'), op = ev.teams.find(t => t.abbr !== 'MIN');
-      head = +mn.score > +op.score ? `WOLVES BEAT ${esc(op.abbr)} ${esc(mn.score)}–${esc(op.score)}` : `${esc(op.abbr)} BEAT WOLVES ${esc(op.score)}–${esc(mn.score)}`; }
+      head = +mn.score > +op.score ? `${P.up} BEAT ${esc(op.abbr)} ${esc(mn.score)}–${esc(op.score)}` : +mn.score < +op.score ? `${esc(op.abbr)} BEAT ${P.up} ${esc(op.score)}–${esc(mn.score)}` : `${P.up} TIE ${esc(op.abbr)} ${esc(mn.score)}–${esc(op.score)}`; }
     else if (a) head = `NOW · ${esc(a.abbr)} ${esc(a.score ?? '')}–${esc(h.score ?? '')} ${esc(h.abbr)}`;
-    const gd = BOARD.find(r => r.game_id === id)?.game_date;
+    const gd = BL.find(r => r.game_id === id)?.game_date;
     const date = gd ? fmt(new Date(gd), { weekday: 'short', month: 'short', day: 'numeric' }) : '';
     return allPicksBox(id, `<h3 style="margin-bottom:.1rem">${head}</h3><div class="dim" style="font-size:.78rem;margin-bottom:.5rem">${FINALS[id] ? 'Pick results' : 'Picks'}${date ? ' · ' + date : ''}</div>`);
   };
@@ -1877,11 +1981,12 @@ function panelPicksBody(photo){
   out += `<div class="box"><h3>SEASON STANDINGS</h3>` + (st.length ? `<table class="lb"><tr><th></th><th>PLAYER</th><th>PTS</th><th>LAST</th><th>WIN %</th></tr>` +
     st.map((u, i) => `<tr class="${u.name === PNAME ? 'me' : ''}"><td>${rankOf(st, i)}</td><td>${esc(u.name)}</td><td><b>${u.w}</b></td><td>${u.last != null ? '+' + u.last : '–'}</td><td>${u.w + u.l ? Math.round(100 * u.w / (u.w + u.l)) + '%' : '–'}</td></tr>`).join('') + `</table>`
     : `<div class="dim">No one is on the board yet.</div>`) +
-    `<div class="dim" style="font-size:.78rem;margin-top:.6rem">1 point per correct pick. Pushes don't count. Picks lock at tipoff and everyone's show after.${PNAME ? ` You're on as <b style="color:var(--gold)">${esc(PNAME)}</b>.` : ''}</div></div>`;
-  // the next Wolves game, once someone has picked it
-  const next = BOARD.filter(r => new Date(r.game_date) > Date.now()).sort((x, y) => new Date(x.game_date) - new Date(y.game_date))[0];
-  if (next){ const ev = findEvent(next.game_id);
-    out += `<div class="wl" style="margin-bottom:1rem"><div class="wli" ${ev ? `data-gid="${ev.id}" data-path="basketball/nba"` : ''}><span class="wk"><span class="chip">UPCOMING</span></span><b>${ev ? esc(ev.teams[0].abbr) + ' @ ' + esc(ev.teams[1].abbr) : 'Wolves'}</b><span class="wr">${whenText(next.game_date)}</span><i>›</i></div></div>` + boardCount(next.game_id); }
+    `<div class="dim" style="font-size:.78rem;margin-top:.6rem">1 point per correct pick. Pushes don't count. Picks lock at ${P.start} and everyone's show after.${PNAME ? ` You're on as <b style="color:var(--gold)">${esc(PNAME)}</b>.` : ''}</div></div>`;
+  // the team's next game, tap to make picks
+  const ti = CFG.mnTeams.findIndex(t => t.path === path && (t.abbr === 'MIN' || ['16','min'].includes(String(t.team).toLowerCase())));
+  const nx = ti >= 0 ? teamState(CFG.mnTeams[ti], ti).next : null;
+  if (nx && nx.state === 'pre'){ const ev = findEvent(nx.id) || nx;
+    out += `<div class="wl" style="margin-bottom:1rem"><div class="wli" data-gid="${ev.id}" data-path="${path}"><span class="wk"><span class="chip">UPCOMING</span></span><b>${esc(ev.teams[0].abbr)} @ ${esc(ev.teams[1].abbr)}</b><span class="wr">${whenText(ev.date)}</span><i>›</i></div></div>` + boardCount(ev.id); }
   // 3) the photo, then earlier games
   out += photo || '';
   started.slice(1, 5).forEach(id => { out += gameBlock(id, false); });
@@ -2016,7 +2121,7 @@ const PHONE = PHONE_MQ.matches;
 PHONE_MQ.addEventListener?.('change', () => location.reload());
 const tabsList = () => [['mn', IS_DEFAULT ? 'Minnesota' : 'My Teams'],
   ...pickedLeagues().filter(leagueInSeason).map(L => [L.code, L.name]),
-  ...(WRES ? [['wr','Wrestling']] : []), ...(hasWolves() ? [['pk','Picks']] : []), ['news','News']];
+  ...(WRES ? [['wr','Wrestling']] : []), ...(hasAnyPick() ? [['pk','Picks']] : []), ['news','News']];
 let mTab = 'mn', mDetail = null, mPick = false;
 try { mTab = localStorage.getItem('gsTab') || 'mn'; } catch(e){}
 function refreshView(){ if (PHONE) mobileRender(true); else rerenderSoft(); }
@@ -2268,7 +2373,7 @@ function restoreGame(){
   if (history.state?.game !== id){ history.replaceState(null, '', location.pathname + location.search); history.pushState({ game: id }, '', location.pathname + location.search + gameHash(id, path)); }
   mDetail = { id, path, e }; mobileRender(); window.scrollTo(0, 0);
   fetchSummary(e, path).then(() => { if (mDetail && mDetail.id === id) mobileRender(true); });
-  if (isPickGame(e, path) && hasWolves()) loadBoard().then(() => { if (mDetail && mDetail.id === id) mobileRender(true); });
+  if (isPickGame(e, path) && hasPickTeam(path)) loadBoard().then(() => { if (mDetail && mDetail.id === id) mobileRender(true); });
 }
 async function openGame(id, path){
   const e = findEvent(id);
@@ -2276,23 +2381,24 @@ async function openGame(id, path){
   Object.keys(BXSORT).forEach(k => delete BXSORT[k]);
   history.pushState({ game: id }, '', location.pathname + location.search + gameHash(id, path));
   mobileRender(); window.scrollTo(0, 0);
-  if (e && isPickGame(e, path) && hasWolves()) loadBoard().then(() => { if (mDetail && mDetail.id === id) mobileRender(true); });
+  if (e && isPickGame(e, path) && hasPickTeam(path)) loadBoard().then(() => { if (mDetail && mDetail.id === id) mobileRender(true); });
   if (e && (!D.sum[id] || e.state === 'in')) { await fetchSummary(e, path); if (mDetail && mDetail.id === id) mobileRender(true); }
 }
 function closeGame(){ mDetail = null; mobileRender(); }
 window.addEventListener('popstate', () => { if (mDetail) closeGame(); });
 document.addEventListener('click', ev => {
   if (!PHONE) return;
-  const t = ev.target.closest('[data-sos],[data-sosn],[data-bxs],[data-join],[data-joinno],[data-bet],[data-install],[data-installx],[data-pick],[data-pkdone],[data-pklg],[data-pkt],[data-pkrm],[data-pkshare],[data-pkmn],[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
+  const t = ev.target.closest('[data-pklg2],[data-sos],[data-sosn],[data-bxs],[data-join],[data-joinno],[data-bet],[data-install],[data-installx],[data-pick],[data-pkdone],[data-pklg],[data-pkt],[data-pkrm],[data-pkshare],[data-pkmn],[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
   if (!t) return;
   if (t.dataset.bet){
     const [id, k, v] = t.dataset.bet.split('|'); const e = findEvent(id); if (!e || e.state !== 'pre') return;
     if (isNewQ(e) && !Array.isArray(QS[id])) return;
-    const b = BETS[id] || (BETS[id] = { t: e.date, lines: isNewQ(e) ? { qs: QS[id] } : pickLines(e, D.sum[id]), p: {} });
+    const b = BETS[id] || (BETS[id] = { t: e.date, lines: isNewQ(e) ? { qs: QS[id], lg: PICKTEAMS[e.lg]?.lg || 'nba' } : pickLines(e, D.sum[id]), p: {} });
     if (b.p[k] === v) delete b.p[k]; else b.p[k] = v;
     if (!Object.keys(b.p).length) delete BETS[id];
     saveBets(); pushBet(id); mobileRender(true); return;
   }
+  if (t.dataset.pklg2){ PKLG = t.dataset.pklg2; try { localStorage.setItem('ysPkLg', PKLG); } catch(e){} BOARDAT = 0; loadBoard().then(() => { if (mTab === 'pk' && !mDetail) mobileRender(true); }); mobileRender(true); return; }
   if (t.dataset.sosn){ SOSN = +t.dataset.sosn; mobileRender(true); return; }
   if (t.dataset.sos){ SOSOPEN[t.dataset.sos] = !SOSOPEN[t.dataset.sos]; mobileRender(true); return; }
   if (t.dataset.bxs){ const [a, l] = t.dataset.bxs.split('|'); if (BXSORT[a] === l) delete BXSORT[a]; else BXSORT[a] = l; mobileRender(true); return; }
