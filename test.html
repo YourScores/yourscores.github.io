@@ -1173,7 +1173,10 @@ const pct3 = v => v == null ? '–' : (v >= 1 ? '1.000' : v.toFixed(3).replace(/
 function sosTeams(conf){
   const me = conf.rows.find(r => myAbbr('basketball/nba', r.abbr)) || (hasWolves() ? conf.rows.find(r => r.abbr === 'MIN') : null);
   if (!me) return [];
-  return conf.rows.filter(r => r === me || gbBetween(r, me) <= 3).map(r => ({ r, me: r === me }));
+  // everyone ahead of you, plus the next two behind if they're within 5 games
+  const i = conf.rows.indexOf(me);
+  const behind = conf.rows.slice(i + 1).filter(r => gbBetween(r, me) <= 5).slice(0, 2);
+  return [...conf.rows.slice(0, i + 1), ...behind].map(r => ({ r, me: r === me }));
 }
 async function loadSOS(list){
   const todo = list.filter(({ r }) => r.id && !(D.sos[r.abbr] && Date.now() - D.sos[r.abbr].at < 3600e3) && !D.sos[r.abbr]?.loading);
@@ -1215,7 +1218,7 @@ function sosBox(conf){
       <span><b>${pct3(c.opp)}</b><small>opp</small></span><span><b>${c.home}</b><small>home</small></span><span><b>${c.b2b}</b><small>B2B</small></span><i>${open ? '▾' : '›'}</i></div>` +
       (open ? `<div class="sosx">${c.rows.map(g => `<div><span>${fmt(new Date(g.date), { weekday: 'short', month: 'numeric', day: 'numeric' })}</span><span>${g.home ? 'vs' : '@'} ${esc(g.opp)}</span><span>${pct3(g.p)}</span><span>${g.b2b ? '<em>B2B</em>' : ''}</span></div>`).join('')}</div>` : ''); };
   return `<div class="box sos"><div class="sosh"><h3>NEXT ${SOSN} SCHEDULE</h3><span><button class="${SOSN === 5 ? 'on' : ''}" data-sosn="5">5</button><button class="${SOSN === 10 ? 'on' : ''}" data-sosn="10">10</button></span></div>
-    <div class="dim" style="font-size:.75rem;margin:-.2rem 0 .4rem">Teams within 3 games, easiest first. Opp = opponents' combined win %. Tap a team for its games.</div>
+    <div class="dim" style="font-size:.75rem;margin:-.2rem 0 .4rem">Everyone ahead plus the next two behind, easiest first. Opp = opponents' combined win %. Tap a team for its games.</div>
     ${calc.map(line).join('')}</div>`;
 }
 
