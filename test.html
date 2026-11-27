@@ -1857,10 +1857,23 @@ function gradeQs(e, sum, b){
 }
 function picksBoxQ(e, sum){
   const b = BETS[e.id] || null;
+  // before tipoff always check the game's official questions, even if picks are saved here
+  if (e.state === 'pre' && !Array.isArray(QS[e.id]) && !(QS[e.id] instanceof Promise) && !(QTRY[e.id] && Date.now() - QTRY[e.id] < 5 * 60e3))
+    getQs(e).then(() => { if (mDetail && mDetail.id === e.id) mobileRender(true); });
+  // saved picks made against an older question set: move them onto the official one, keeping answers to unchanged questions
+  if (e.state === 'pre' && b?.lines?.qs && Array.isArray(QS[e.id]) && JSON.stringify(b.lines.qs) !== JSON.stringify(QS[e.id])){
+    const old = Object.fromEntries(b.lines.qs.map(q => [q.k, JSON.stringify(q)]));
+    QS[e.id].forEach(q => { if (old[q.k] !== JSON.stringify(q)) delete b.p[q.k]; });
+    Object.keys(b.p).forEach(k => { if (!QS[e.id].some(q => q.k === k)) delete b.p[k]; });
+    b.lines.qs = QS[e.id];
+    if (!Object.keys(b.p).length) delete BETS[e.id];
+    saveBets(); pushBet(e.id);
+    return picksBoxQ(e, sum);
+  }
   const qs = b?.lines?.qs || (Array.isArray(QS[e.id]) ? QS[e.id] : null);
   if (!qs){
     // ask at most every 5 minutes; redraw once the answer is in (questions, or still waiting)
-    if (!(QS[e.id] instanceof Promise) && !(QTRY[e.id] && Date.now() - QTRY[e.id] < 5 * 60e3)) getQs(e).then(() => { if (mDetail && mDetail.id === e.id) mobileRender(true); });
+    if (e.state !== 'pre' && !(QS[e.id] instanceof Promise) && !(QTRY[e.id] && Date.now() - QTRY[e.id] < 5 * 60e3)) getQs(e).then(() => { if (mDetail && mDetail.id === e.id) mobileRender(true); });
     const early = e.lg === 'football/nfl' && new Date(e.date) - Date.now() > 48 * 3600e3;
     const msg = e.state !== 'pre' ? 'No picks for this game.' : QS[e.id] instanceof Promise ? "Loading this game's questions…"
       : early ? `This game's questions post ${fmt(new Date(new Date(e.date) - 48 * 3600e3), { weekday: 'long', hour: 'numeric', minute: '2-digit' })}, two days before kickoff.` : "This game's questions post once the spread is out, usually the day before.";
@@ -2481,9 +2494,13 @@ document.addEventListener('click', ev => {
   const t = ev.target.closest('[data-pklg2],[data-sos],[data-sosn],[data-bxs],[data-join],[data-joinno],[data-bet],[data-install],[data-installx],[data-pick],[data-pkdone],[data-pklg],[data-pkt],[data-pkrm],[data-pkshare],[data-pkmn],[data-shield],[data-reveal],[data-tab],[data-back],[data-gid],[data-mn]');
   if (!t) return;
   if (t.dataset.bet){
-    const [id, k, v] = t.dataset.bet.split('|'); const e = findEvent(id); if (!e || e.state !== 'pre') return;
-    if (isNewQ(e) && !Array.isArray(QS[id])) return;
-    const b = BETS[id] || (BETS[id] = { t: e.date, lines: isNewQ(e) ? { qs: QS[id], lg: PICKTEAMS[e.lg]?.lg || 'nba' } : pickLines(e, D.sum[id]), p: {} });
+    const [id, k, v] = t.dataset.bet.split('|');
+    const e = (mDetail && mDetail.id === id && mDetail.e) || findEvent(id);
+    if (!e || new Date(e.date) <= Date.now()) return;   // buttons only render pre-game; trust the tipoff time, not a stale state field
+    if (!e.lg && mDetail?.path) e.lg = mDetail.path;
+    const qs = BETS[id]?.lines?.qs || (Array.isArray(QS[id]) ? QS[id] : null);
+    if (isNewQ(e) && !qs){ delete QTRY[id]; getQs(e).then(() => mobileRender(true)); return; }
+    const b = BETS[id] || (BETS[id] = { t: e.date, lines: isNewQ(e) ? { qs, lg: PICKTEAMS[e.lg]?.lg || 'nba' } : pickLines(e, D.sum[id]), p: {} });
     if (b.p[k] === v) delete b.p[k]; else b.p[k] = v;
     if (!Object.keys(b.p).length) delete BETS[id];
     saveBets(); pushBet(id); mobileRender(true); return;
