@@ -965,9 +965,12 @@ function shieldBar(){
 /* ---------------- panels ---------------- */
 // ESPN logos come in a version made for dark backgrounds (black logos like Iowa or the Raiders turn white/outlined);
 // use it, and fall back to the regular logo if a team doesn't have one
+// teams whose dark version is a plain white outline while the regular logo is a bright color that reads fine on dark: keep the color one
+const COLORLOGO = new Set('nba/utah nba/tor nfl/lar nhl/tor mlb/atl mlb/phi mlb/lad ncaa/84 ncaa/150 ncaa/153 ncaa/197 ncaa/218 ncaa/205 ncaa/228 ncaa/249 ncaa/254 ncaa/251 ncaa/333 ncaa/2005 ncaa/2031 ncaa/2049 ncaa/2084 ncaa/2104 ncaa/2124 ncaa/2253 ncaa/2258 ncaa/2363 ncaa/2424 ncaa/2501 ncaa/2534 ncaa/2633 ncaa/2740'.split(' '));
 function logoImg(src, cls=''){
   if (!src) return '';
-  const dark = /\/i\/teamlogos\/[a-z]+\/500\//.test(src) ? src.replace(/(\/i\/teamlogos\/[a-z]+)\/500\//, '$1/500-dark/') : '';
+  const ck = (src.match(/\/i\/teamlogos\/([a-z]+)\/500\/([a-z0-9]+)\.png/i) || []).slice(1).join('/').toLowerCase();
+  const dark = !COLORLOGO.has(ck) && /\/i\/teamlogos\/[a-z]+\/500\//.test(src) ? src.replace(/(\/i\/teamlogos\/[a-z]+)\/500\//, '$1/500-dark/') : '';
   return dark ? `<img class="${cls}" src="${esc(dark)}" alt="" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='${esc(src)}'}else this.style.visibility='hidden'">`
     : `<img class="${cls}" src="${esc(src)}" alt="" onerror="this.style.visibility='hidden'">`;
 }
